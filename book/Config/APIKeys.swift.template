@@ -1,0 +1,17 @@
+//
+//  APIKeys.swift.template
+//  book
+//
+//  Created by Dheeraj Gautam on 03/02/26.
+//
+
+import Foundation
+
+struct APIKeys {
+    static let groqAPIKey = "YOUR_GROQ_API_KEY_HERE"
+}
+
+// Instructions:
+// 1. Copy this file to APIKeys.swift
+// 2. Replace "YOUR_GROQ_API_KEY_HERE" with your actual Groq API key
+// 3. The APIKeys.swift file is ignored by Git for security
