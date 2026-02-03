@@ -8,7 +8,7 @@
 import Foundation
 
 class SpeechCorrectionService {
-    private let apiService = GroqAPIService()
+    private let apiService = OpenAIService()
     
     func correctTranscript(_ rawTranscript: String) async throws -> String {
         let correctionPrompt = """
@@ -19,6 +19,7 @@ class SpeechCorrectionService {
         Corrected text:
         """
         
-        return try await apiService.getSingleResponse(correctionPrompt)
+        // Use GPT-3.5 Turbo for fast text enhancement
+        return try await apiService.getSingleResponse(correctionPrompt, model: .gpt35Turbo)
     }
 }

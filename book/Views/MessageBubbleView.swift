@@ -16,13 +16,27 @@ struct MessageBubbleView: View {
                 Spacer()
                 
                 // User message - right side
-                Text(message.text)
-                    .font(.system(size: 16))
-                    .foregroundColor(.white)
-                    .padding(12)
-                    .background(Color(red: 0.3, green: 0.3, blue: 0.3).opacity(0.9))
-                    .cornerRadius(12)
-                    .frame(maxWidth: 400, alignment: .trailing)
+                VStack(alignment: .trailing, spacing: 8) {
+                    // Show images if present
+                    if !message.images.isEmpty {
+                        ForEach(Array(message.images.enumerated()), id: \.offset) { _, image in
+                            Image(nsImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(maxWidth: 200, maxHeight: 200)
+                                .cornerRadius(8)
+                                .clipped()
+                        }
+                    }
+                    
+                    Text(message.text)
+                        .font(.system(size: 16))
+                        .foregroundColor(.white)
+                        .padding(12)
+                        .background(Color(red: 0.3, green: 0.3, blue: 0.3).opacity(0.9))
+                        .cornerRadius(12)
+                }
+                .frame(maxWidth: 400, alignment: .trailing)
             } else {
                 // AI message - left side full width with code formatting
                 FormattedTextView(text: message.text)

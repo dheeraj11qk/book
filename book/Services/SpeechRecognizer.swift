@@ -115,6 +115,18 @@ class SpeechRecognizer: ObservableObject {
             return
         }
         
+        // Check if voice enhancement is enabled
+        let enhancementEnabled = UserDefaults.standard.voiceEnhancementEnabled
+        
+        if !enhancementEnabled {
+            // Skip AI enhancement, use raw transcript
+            await MainActor.run {
+                self.transcript = rawTranscript
+                self.onCorrectedTranscript?(rawTranscript)
+            }
+            return
+        }
+        
         await MainActor.run {
             self.isProcessing = true
         }

@@ -6,16 +6,19 @@
 //
 
 import Foundation
+import AppKit
 
 struct Message: Identifiable {
     let id = UUID()
     let text: String
     let isUser: Bool
     let timestamp: Date
+    let images: [NSImage]
     
-    init(text: String, isUser: Bool) {
+    init(text: String, isUser: Bool, images: [NSImage] = []) {
         self.text = text
         self.isUser = isUser
         self.timestamp = Date()
+        self.images = images
     }
 }

@@ -7,15 +7,23 @@
 
 import SwiftUI
 import UniformTypeIdentifiers
+import PDFKit
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var hideFromCapture: Bool = UserDefaults.standard.hideFromCapture
-    @State private var apiKey: String = UserDefaults.standard.openAIAPIKey
-    @State private var showingAPIKeyEditor = false
+    @State private var openAIAPIKey: String = UserDefaults.standard.openAIAPIKey
+    @State private var groqAPIKey: String = UserDefaults.standard.groqAPIKey
+    @State private var selectedAIProvider: String = UserDefaults.standard.selectedAIProvider
+    @State private var voiceEnhancementEnabled: Bool = UserDefaults.standard.voiceEnhancementEnabled
+    @State private var showingOpenAIKeyEditor = false
+    @State private var showingGroqKeyEditor = false
     @State private var showingFilePicker = false
     @State private var resumeFileName: String = UserDefaults.standard.resumeFileName
     @State private var showingSaveAlert = false
+    @State private var isGeneratingSummary = false
+    
+    private let openAIService = OpenAIService()
     
     private var shouldHideFromCapture: Bool {
         UserDefaults.standard.hideFromCapture
@@ -28,8 +36,11 @@ struct SettingsView: View {
         }
         .background(Color.black.opacity(0.9))
         .privacySensitive(shouldHideFromCapture)
-        .sheet(isPresented: $showingAPIKeyEditor) {
-            APIKeyEditorView(apiKey: $apiKey)
+        .sheet(isPresented: $showingOpenAIKeyEditor) {
+            APIKeyEditorView(title: "OpenAI API Key", apiKey: $openAIAPIKey)
+        }
+        .sheet(isPresented: $showingGroqKeyEditor) {
+            APIKeyEditorView(title: "Groq API Key", apiKey: $groqAPIKey)
         }
         .fileImporter(
             isPresented: $showingFilePicker,
@@ -73,6 +84,7 @@ struct SettingsView: View {
         ScrollView {
             VStack(spacing: 20) {
                 privacySection
+                voiceEnhancementSection
                 apiConfigSection
                 resumeSection
                 Spacer(minLength: 50)
@@ -108,25 +120,95 @@ struct SettingsView: View {
         }
     }
     
+    private var voiceEnhancementSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Voice Input")
+                .font(.headline)
+                .foregroundColor(.white)
+            
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("AI Voice Enhancement")
+                        .foregroundColor(.white)
+                    Text(voiceEnhancementEnabled ? "AI enhances speech-to-text" : "Simple voice-to-text only")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                Toggle("", isOn: $voiceEnhancementEnabled)
+                    .toggleStyle(SwitchToggleStyle(tint: .blue))
+            }
+            .padding()
+            .background(Color.gray.opacity(0.2))
+            .cornerRadius(10)
+        }
+    }
+    
     private var apiConfigSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("API Configuration")
                 .font(.headline)
                 .foregroundColor(.white)
             
+            // AI Provider Selector
+            VStack(alignment: .leading, spacing: 8) {
+                Text("AI Provider")
+                    .foregroundColor(.white)
+                    .font(.subheadline)
+                
+                Picker("", selection: $selectedAIProvider) {
+                    Text("OpenAI").tag("OpenAI")
+                    Text("Groq").tag("Groq")
+                }
+                .pickerStyle(SegmentedPickerStyle())
+                .padding(.horizontal)
+            }
+            .padding()
+            .background(Color.gray.opacity(0.2))
+            .cornerRadius(10)
+            
+            // OpenAI API Key
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("OpenAI API Key")
                         .foregroundColor(.white)
-                    Text(apiKey.isEmpty ? "Not configured" : "••••••••••••••••")
+                    Text(openAIAPIKey.isEmpty ? "Not configured" : "••••••••••••••••")
                         .font(.caption)
-                        .foregroundColor(apiKey.isEmpty ? .red : .green)
+                        .foregroundColor(openAIAPIKey.isEmpty ? .red : .green)
                 }
                 
                 Spacer()
                 
                 Button(action: {
-                    showingAPIKeyEditor = true
+                    showingOpenAIKeyEditor = true
+                }) {
+                    Image(systemName: "pencil")
+                        .foregroundColor(.white)
+                        .font(.system(size: 20))
+                        .padding(8)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+            .background(Color.gray.opacity(0.2))
+            .cornerRadius(10)
+            
+            // Groq API Key
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Groq API Key")
+                        .foregroundColor(.white)
+                    Text(groqAPIKey.isEmpty ? "Not configured" : "••••••••••••••••")
+                        .font(.caption)
+                        .foregroundColor(groqAPIKey.isEmpty ? .red : .green)
+                }
+                
+                Spacer()
+                
+                Button(action: {
+                    showingGroqKeyEditor = true
                 }) {
                     Image(systemName: "pencil")
                         .foregroundColor(.white)
@@ -156,9 +238,20 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Resume File")
                     .foregroundColor(.white)
-                Text(resumeFileName.isEmpty ? "No file added" : resumeFileName)
-                    .font(.caption)
-                    .foregroundColor(resumeFileName.isEmpty ? .gray : .green)
+                if isGeneratingSummary {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                        Text("Generating summary...")
+                            .font(.caption)
+                            .foregroundColor(.blue)
+                    }
+                } else {
+                    Text(resumeFileName.isEmpty ? "No file added" : resumeFileName)
+                        .font(.caption)
+                        .foregroundColor(resumeFileName.isEmpty ? .gray : .green)
+                }
             }
             
             Spacer()
@@ -172,19 +265,19 @@ struct SettingsView: View {
                     .padding(8)
             }
             .buttonStyle(.plain)
+            .disabled(isGeneratingSummary)
         }
         .padding()
         .background(Color.gray.opacity(0.2))
         .cornerRadius(10)
     }
     
-    private var resumePreview: some View {
-        EmptyView()
-    }
-    
     private func saveSettings() {
         UserDefaults.standard.hideFromCapture = hideFromCapture
-        UserDefaults.standard.openAIAPIKey = apiKey
+        UserDefaults.standard.openAIAPIKey = openAIAPIKey
+        UserDefaults.standard.groqAPIKey = groqAPIKey
+        UserDefaults.standard.selectedAIProvider = selectedAIProvider
+        UserDefaults.standard.voiceEnhancementEnabled = voiceEnhancementEnabled
         
         showingSaveAlert = true
         
@@ -239,6 +332,10 @@ struct SettingsView: View {
                 UserDefaults.standard.resumeFilePath = destinationURL.path
                 
                 print("Resume saved: \(fileName)")
+                
+                // Generate summary from resume
+                generateResumeSummary(from: destinationURL)
+                
             } catch {
                 print("Error saving resume: \(error)")
             }
@@ -247,9 +344,72 @@ struct SettingsView: View {
             print("File import error: \(error)")
         }
     }
+    
+    private func generateResumeSummary(from fileURL: URL) {
+        isGeneratingSummary = true
+        
+        Task {
+            do {
+                // Read file content
+                let fileContent: String
+                if fileURL.pathExtension.lowercased() == "pdf" {
+                    // Use PDFKit for PDF extraction
+                    if let pdfDocument = PDFDocument(url: fileURL) {
+                        var text = ""
+                        for pageIndex in 0..<pdfDocument.pageCount {
+                            if let page = pdfDocument.page(at: pageIndex) {
+                                if let pageText = page.string {
+                                    text += pageText + "\n"
+                                }
+                            }
+                        }
+                        fileContent = text
+                    } else {
+                        throw NSError(domain: "PDF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to read PDF"])
+                    }
+                } else {
+                    fileContent = try String(contentsOf: fileURL, encoding: .utf8)
+                }
+                
+                // Create summary prompt
+                let summaryPrompt = """
+                Please create a concise professional summary of this resume. Include:
+                - Name and professional title
+                - Key skills and expertise
+                - Years of experience
+                - Notable achievements or specializations
+                - Education highlights
+                
+                Keep the summary under 150 words and focus on the most relevant professional information.
+                
+                Resume content:
+                \(fileContent)
+                
+                Professional Summary:
+                """
+                
+                // Generate summary using AI
+                let summary = try await openAIService.getSingleResponse(summaryPrompt, model: .gpt35Turbo)
+                
+                // Save summary
+                await MainActor.run {
+                    UserDefaults.standard.resumeSummary = summary
+                    isGeneratingSummary = false
+                    print("Resume summary generated and saved")
+                }
+                
+            } catch {
+                await MainActor.run {
+                    isGeneratingSummary = false
+                    print("Error generating resume summary: \(error)")
+                }
+            }
+        }
+    }
 }
 
 struct APIKeyEditorView: View {
+    let title: String
     @Binding var apiKey: String
     @Environment(\.dismiss) private var dismiss
     @State private var tempAPIKey: String = ""
@@ -265,7 +425,7 @@ struct APIKeyEditorView: View {
                 
                 Spacer()
                 
-                Text("API Key")
+                Text(title)
                     .font(.headline)
                     .foregroundColor(.white)
                 
@@ -283,7 +443,7 @@ struct APIKeyEditorView: View {
             
             // Content
             VStack(spacing: 20) {
-                Text("Enter your Groq API Key")
+                Text("Enter your \(title)")
                     .font(.headline)
                     .foregroundColor(.white)
                 
@@ -291,7 +451,7 @@ struct APIKeyEditorView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding()
                 
-                Text("You can get your API key from the Groq Console")
+                Text("You can get your API key from the provider's console")
                     .font(.caption)
                     .foregroundColor(.gray)
                     .multilineTextAlignment(.center)
