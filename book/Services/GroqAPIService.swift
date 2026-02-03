@@ -8,7 +8,11 @@
 import Foundation
 
 class GroqAPIService {
-    private let apiKey = APIKeys.groqAPIKey
+    private var apiKey: String {
+        // Use OpenAI API key from UserDefaults (shared preference)
+        let userDefaultsKey = UserDefaults.standard.openAIAPIKey
+        return !userDefaultsKey.isEmpty ? userDefaultsKey : APIKeys.groqAPIKey
+    }
     private let baseURL = "https://api.groq.com/openai/v1/chat/completions"
     
     private var currentTask: URLSessionDataTask?

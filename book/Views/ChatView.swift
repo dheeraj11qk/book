@@ -14,7 +14,8 @@ struct ChatView: View {
     @StateObject private var captureObserver = ScreenCaptureObserver()
     @State private var inputText: String = ""
     @State private var selectedPrompt: PromptTemplate = .short
-    @State private var forceHideForShare = false
+    @State private var showingSettings = false
+    @State private var randomGreeting: String = ""
     
     private var shareBackground: Color {
         #if canImport(UIKit)
@@ -33,8 +34,21 @@ struct ChatView: View {
     }
     
     private var shouldHideFromCapture: Bool {
-        forceHideForShare // Only hide from screen capture when toggle is enabled
+        UserDefaults.standard.hideFromCapture
     }
+    
+    private let greetings = [
+        "Hey there",
+        "What's up?",
+        "How's it going?",
+        "How are things?",
+        "What's going on?",
+        "How's everything?",
+        "What's new?",
+        "How've you been?",
+        "What's happening?",
+        "How's life?"
+    ]
     
     var body: some View {
         ZStack {
@@ -61,23 +75,16 @@ struct ChatView: View {
             } else {
                 // Normal chat interface - user always sees this
                 VStack(spacing: 0) {
-                    // Top bar with hide toggle and reset button
+                    // Top bar with settings and reset button
                     HStack {
-                        // Hide from capture toggle
+                        // Settings button
                         Button(action: {
-                            forceHideForShare.toggle()
+                            showingSettings = true
                         }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: forceHideForShare ? "eye.slash.fill" : "eye.fill")
-                                    .font(.system(size: 16))
-                                Text(forceHideForShare ? "Hidden from Capture" : "Visible to Capture")
-                                    .font(.system(size: 14))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(forceHideForShare ? Color.red.opacity(0.7) : Color.gray.opacity(0.5))
-                            .cornerRadius(8)
+                            Image(systemName: "gearshape.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(.white)
+                                .padding(8)
                         }
                         .buttonStyle(.plain)
                         
@@ -103,8 +110,9 @@ struct ChatView: View {
                             if viewModel.messages.isEmpty && viewModel.currentStreamingMessage.isEmpty {
                                 // Empty state
                                 VStack {
+                                    
                                     Spacer()
-                                    Text("Start chatting")
+                                    Text(randomGreeting)
                                         .font(.system(size: 24, weight: .medium))
                                         .foregroundColor(.white.opacity(0.6))
                                     Spacer()
@@ -138,7 +146,7 @@ struct ChatView: View {
                             }
                         }
                         .privacySensitive(shouldHideFromCapture)
-                        .onChange(of: viewModel.messages.count) { _ in
+                        .onChange(of: viewModel.messages.count) {
                             // Auto-scroll only when new message is sent
                             if let lastMessage = viewModel.messages.last {
                                 withAnimation {
@@ -189,7 +197,13 @@ struct ChatView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .privacySensitive()
         .animation(.default, value: isHiding)
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
+        }
         .onAppear {
+            // Set random greeting when app opens
+            randomGreeting = greetings.randomElement() ?? "Hey there"
+            
             speechRecognizer.requestAuthorization()
             speechRecognizer.onTranscriptUpdate = { transcript in
                 inputText = transcript
@@ -212,11 +226,6 @@ struct ChatView: View {
             
             #if canImport(AppKit)
             captureObserver.updateWindowSharingType(isHidden: shouldHideFromCapture)
-            #endif
-        }
-        .onChange(of: shouldHideFromCapture) { _, newValue in
-            #if canImport(AppKit)
-            captureObserver.updateWindowSharingType(isHidden: newValue)
             #endif
         }
     }
