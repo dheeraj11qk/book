@@ -8,7 +8,6 @@ A macOS voice-to-text chat application with AI-powered speech correction and scr
 - **AI Speech Correction**: Automatic grammar and punctuation correction using Groq API
 - **Chat Interface**: Clean chat UI with message bubbles and streaming responses
 - **Screenshot Integration**: Take and send screenshots with your messages
-- **Screen Capture Privacy**: Hide content from screen recordings/sharing
 - **Prompt Templates**: Short, Long, and Solution prompt options
 - **Markdown Support**: Rich text formatting in chat messages
 - **Transparent Background**: Glass-like transparent window design
