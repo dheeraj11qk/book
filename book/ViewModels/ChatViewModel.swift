@@ -16,6 +16,7 @@ class ChatViewModel: ObservableObject {
     @Published var currentStreamingMessage = ""
     
     private let apiService = OpenAIService()
+    private let ragService = InMemoryRAGService()
     private var streamingTask: Task<Void, Never>?
     
     func sendMessage(_ text: String, model: AIModel = .gpt35Turbo) {
@@ -27,7 +28,17 @@ class ChatViewModel: ObservableObject {
         
         streamingTask = Task {
             do {
-                try await apiService.streamMessage(text, model: model) { [weak self] chunk in
+                // Ingest user message into RAG
+                await ragService.ingestMessage(role: "user", content: text)
+                
+                // Retrieve context
+                let context = await ragService.retrieveContext(for: text)
+                
+                // Build augmented prompt
+                let augmentedPrompt = ragService.buildAugmentedPrompt(query: text, context: context)
+                
+                // Stream response
+                try await apiService.streamMessage(augmentedPrompt, model: model) { [weak self] chunk in
                     self?.currentStreamingMessage = chunk
                 }
                 
@@ -35,6 +46,10 @@ class ChatViewModel: ObservableObject {
                 if !currentStreamingMessage.isEmpty {
                     let aiMessage = Message(text: currentStreamingMessage, isUser: false)
                     messages.append(aiMessage)
+                    
+                    // Ingest assistant response
+                    await ragService.ingestMessage(role: "assistant", content: currentStreamingMessage)
+                    
                     currentStreamingMessage = ""
                 }
                 
@@ -57,9 +72,18 @@ class ChatViewModel: ObservableObject {
         
         streamingTask = Task {
             do {
+                // Ingest user message
+                await ragService.ingestMessage(role: "user", content: text)
+                
+                // Retrieve context
+                let context = await ragService.retrieveContext(for: text)
+                
+                // Build augmented prompt
+                let augmentedPrompt = ragService.buildAugmentedPrompt(query: text, context: context)
+                
                 // Use GPT-4o Mini for vision tasks
                 if let firstImage = images.first {
-                    try await apiService.sendMessageWithImage(text, image: firstImage, model: .gpt4oMini) { [weak self] chunk in
+                    try await apiService.sendMessageWithImage(augmentedPrompt, image: firstImage, model: .gpt4oMini) { [weak self] chunk in
                         self?.currentStreamingMessage = chunk
                     }
                 }
@@ -68,6 +92,10 @@ class ChatViewModel: ObservableObject {
                 if !currentStreamingMessage.isEmpty {
                     let aiMessage = Message(text: currentStreamingMessage, isUser: false)
                     messages.append(aiMessage)
+                    
+                    // Ingest assistant response
+                    await ragService.ingestMessage(role: "assistant", content: currentStreamingMessage)
+                    
                     currentStreamingMessage = ""
                 }
                 
@@ -99,5 +127,14 @@ class ChatViewModel: ObservableObject {
         currentStreamingMessage = ""
         isLoading = false
         streamingTask?.cancel()
+        
+        // Clear RAG memory
+        Task {
+            await ragService.clearAllMemory()
+        }
+    }
+    
+    func getRAGStats() -> String {
+        ragService.getMemoryStats()
     }
 }
