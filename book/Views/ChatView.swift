@@ -13,7 +13,6 @@ struct ChatView: View {
     @StateObject private var screenshotService = ScreenshotService()
     @StateObject private var captureObserver = ScreenCaptureObserver()
     @State private var inputText: String = ""
-    @State private var selectedPrompt: PromptTemplate = .short
     @State private var showingSettings = false
     @State private var randomGreeting: String = ""
     
@@ -162,7 +161,6 @@ struct ChatView: View {
                     // Input area
                     InputBarView(
                         inputText: $inputText,
-                        selectedPrompt: $selectedPrompt,
                         isRecording: speechRecognizer.isRecording,
                         isProcessing: speechRecognizer.isProcessing,
                         isLoading: viewModel.isLoading,
@@ -235,33 +233,18 @@ struct ChatView: View {
         guard !text.isEmpty || !screenshotService.screenshots.isEmpty else { return }
         guard !viewModel.isLoading else { return }
         
-        // Get resume summary if available
-        let resumeSummary = UserDefaults.standard.resumeSummary
-        
         // Check if we have screenshots
         if !screenshotService.screenshots.isEmpty {
-            // Always use Solution prompt for images, but don't change dropdown
+            // Send with images
             let messageText = text.isEmpty ? "Analyze this image" : text
-            
-            // Compile Solution prompt with user text and resume summary
-            let solutionPrompt = PromptTemplate.solution.compile(with: messageText, resumeSummary: resumeSummary)
-            
-            // Send with images using GPT-4o Mini with Solution prompt
-            viewModel.sendMessageWithImagesAndPrompt(solutionPrompt, images: screenshotService.screenshots)
+            viewModel.sendMessageWithImages(messageText, images: screenshotService.screenshots)
             
             // Clear input and screenshots
             inputText = ""
             screenshotService.clearScreenshots()
         } else {
-            // Show only user's original text in UI
-            let userMessage = Message(text: text, isUser: true)
-            viewModel.messages.append(userMessage)
-            
-            // Compile prompt with template and resume summary (hidden from UI)
-            let compiledPrompt = selectedPrompt.compile(with: text, resumeSummary: resumeSummary)
-            
-            // Send compiled prompt to AI with appropriate model
-            viewModel.sendMessageWithPrompt(compiledPrompt, model: selectedPrompt.aiModel)
+            // Send text only
+            viewModel.sendMessage(text)
             
             // Clear input immediately
             inputText = ""

@@ -15,9 +15,6 @@ extension UserDefaults {
         static let groqAPIKey = "groqAPIKey"
         static let selectedAIProvider = "selectedAIProvider"
         static let voiceEnhancementEnabled = "voiceEnhancementEnabled"
-        static let resumeFileName = "resumeFileName"
-        static let resumeFilePath = "resumeFilePath"
-        static let resumeSummary = "resumeSummary"
     }
     
     // Convenience methods for settings
@@ -50,20 +47,5 @@ extension UserDefaults {
             return bool(forKey: Keys.voiceEnhancementEnabled)
         }
         set { set(newValue, forKey: Keys.voiceEnhancementEnabled) }
-    }
-    
-    var resumeFileName: String {
-        get { string(forKey: Keys.resumeFileName) ?? "" }
-        set { set(newValue, forKey: Keys.resumeFileName) }
-    }
-    
-    var resumeFilePath: String {
-        get { string(forKey: Keys.resumeFilePath) ?? "" }
-        set { set(newValue, forKey: Keys.resumeFilePath) }
-    }
-    
-    var resumeSummary: String {
-        get { string(forKey: Keys.resumeSummary) ?? "" }
-        set { set(newValue, forKey: Keys.resumeSummary) }
     }
 }

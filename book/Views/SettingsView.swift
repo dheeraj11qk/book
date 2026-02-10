@@ -6,8 +6,6 @@
 //
 
 import SwiftUI
-import UniformTypeIdentifiers
-import PDFKit
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
@@ -18,12 +16,7 @@ struct SettingsView: View {
     @State private var voiceEnhancementEnabled: Bool = UserDefaults.standard.voiceEnhancementEnabled
     @State private var showingOpenAIKeyEditor = false
     @State private var showingGroqKeyEditor = false
-    @State private var showingFilePicker = false
-    @State private var resumeFileName: String = UserDefaults.standard.resumeFileName
     @State private var showingSaveAlert = false
-    @State private var isGeneratingSummary = false
-    
-    private let openAIService = OpenAIService()
     
     private var shouldHideFromCapture: Bool {
         UserDefaults.standard.hideFromCapture
@@ -41,13 +34,6 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showingGroqKeyEditor) {
             APIKeyEditorView(title: "Groq API Key", apiKey: $groqAPIKey)
-        }
-        .fileImporter(
-            isPresented: $showingFilePicker,
-            allowedContentTypes: [.pdf, .plainText],
-            allowsMultipleSelection: false
-        ) { result in
-            handleFileImport(result: result)
         }
         .alert("Settings Saved", isPresented: $showingSaveAlert) {
             Button("OK") { }
@@ -86,7 +72,6 @@ struct SettingsView: View {
                 privacySection
                 voiceEnhancementSection
                 apiConfigSection
-                resumeSection
                 Spacer(minLength: 50)
             }
             .padding()
@@ -223,55 +208,6 @@ struct SettingsView: View {
         }
     }
     
-    private var resumeSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Resume")
-                .font(.headline)
-                .foregroundColor(.white)
-            
-            resumeFileRow
-        }
-    }
-    
-    private var resumeFileRow: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Resume File")
-                    .foregroundColor(.white)
-                if isGeneratingSummary {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                            .progressViewStyle(CircularProgressViewStyle(tint: .blue))
-                        Text("Generating summary...")
-                            .font(.caption)
-                            .foregroundColor(.blue)
-                    }
-                } else {
-                    Text(resumeFileName.isEmpty ? "No file added" : resumeFileName)
-                        .font(.caption)
-                        .foregroundColor(resumeFileName.isEmpty ? .gray : .green)
-                }
-            }
-            
-            Spacer()
-            
-            Button(action: {
-                showingFilePicker = true
-            }) {
-                Image(systemName: "plus.circle")
-                    .foregroundColor(.white)
-                    .font(.system(size: 20))
-                    .padding(8)
-            }
-            .buttonStyle(.plain)
-            .disabled(isGeneratingSummary)
-        }
-        .padding()
-        .background(Color.gray.opacity(0.2))
-        .cornerRadius(10)
-    }
-    
     private func saveSettings() {
         UserDefaults.standard.hideFromCapture = hideFromCapture
         UserDefaults.standard.openAIAPIKey = openAIAPIKey
@@ -291,119 +227,6 @@ struct SettingsView: View {
         // Dismiss after a short delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             dismiss()
-        }
-    }
-    
-    private func handleFileImport(result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            
-            // Start accessing security-scoped resource
-            guard url.startAccessingSecurityScopedResource() else {
-                print("Failed to access security-scoped resource")
-                return
-            }
-            
-            defer {
-                url.stopAccessingSecurityScopedResource()
-            }
-            
-            do {
-                // Get the file name
-                let fileName = url.lastPathComponent
-                
-                // Copy file to app's documents directory
-                let fileManager = FileManager.default
-                let documentsURL = try fileManager.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-                let destinationURL = documentsURL.appendingPathComponent("resume.pdf")
-                
-                // Remove existing file if present
-                if fileManager.fileExists(atPath: destinationURL.path) {
-                    try fileManager.removeItem(at: destinationURL)
-                }
-                
-                // Copy the file
-                try fileManager.copyItem(at: url, to: destinationURL)
-                
-                // Save file name and path
-                resumeFileName = fileName
-                UserDefaults.standard.resumeFileName = fileName
-                UserDefaults.standard.resumeFilePath = destinationURL.path
-                
-                print("Resume saved: \(fileName)")
-                
-                // Generate summary from resume
-                generateResumeSummary(from: destinationURL)
-                
-            } catch {
-                print("Error saving resume: \(error)")
-            }
-            
-        case .failure(let error):
-            print("File import error: \(error)")
-        }
-    }
-    
-    private func generateResumeSummary(from fileURL: URL) {
-        isGeneratingSummary = true
-        
-        Task {
-            do {
-                // Read file content
-                let fileContent: String
-                if fileURL.pathExtension.lowercased() == "pdf" {
-                    // Use PDFKit for PDF extraction
-                    if let pdfDocument = PDFDocument(url: fileURL) {
-                        var text = ""
-                        for pageIndex in 0..<pdfDocument.pageCount {
-                            if let page = pdfDocument.page(at: pageIndex) {
-                                if let pageText = page.string {
-                                    text += pageText + "\n"
-                                }
-                            }
-                        }
-                        fileContent = text
-                    } else {
-                        throw NSError(domain: "PDF", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to read PDF"])
-                    }
-                } else {
-                    fileContent = try String(contentsOf: fileURL, encoding: .utf8)
-                }
-                
-                // Create summary prompt
-                let summaryPrompt = """
-                Please create a concise professional summary of this resume. Include:
-                - Name and professional title
-                - Key skills and expertise
-                - Years of experience
-                - Notable achievements or specializations
-                - Education highlights
-                
-                Keep the summary under 150 words and focus on the most relevant professional information.
-                
-                Resume content:
-                \(fileContent)
-                
-                Professional Summary:
-                """
-                
-                // Generate summary using AI
-                let summary = try await openAIService.getSingleResponse(summaryPrompt, model: .gpt35Turbo)
-                
-                // Save summary
-                await MainActor.run {
-                    UserDefaults.standard.resumeSummary = summary
-                    isGeneratingSummary = false
-                    print("Resume summary generated and saved")
-                }
-                
-            } catch {
-                await MainActor.run {
-                    isGeneratingSummary = false
-                    print("Error generating resume summary: \(error)")
-                }
-            }
         }
     }
 }

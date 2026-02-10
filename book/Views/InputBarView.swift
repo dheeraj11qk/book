@@ -9,7 +9,6 @@ import SwiftUI
 
 struct InputBarView: View {
     @Binding var inputText: String
-    @Binding var selectedPrompt: PromptTemplate
     let isRecording: Bool
     let isProcessing: Bool
     let isLoading: Bool
@@ -59,36 +58,6 @@ struct InputBarView: View {
             }
             
             HStack(spacing: 12) {
-                // Prompt dropdown
-                Menu {
-                    ForEach(PromptTemplate.allCases, id: \.self) { template in
-                        Button(action: {
-                            selectedPrompt = template
-                        }) {
-                            HStack {
-                                Text(template.rawValue)
-                                if selectedPrompt == template {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(selectedPrompt.rawValue)
-                            .font(.system(size: 14))
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color(red: 0.4, green: 0.4, blue: 0.4).opacity(0.9))
-                    .cornerRadius(8)
-                }
-                .buttonStyle(.plain)
-                .help(selectedPrompt.description)
-                
                 // Screenshot button
                 Button(action: onScreenshotTap) {
                     Image(systemName: "camera.fill")
