@@ -121,6 +121,7 @@ struct ChatView: View {
                                 VStack(spacing: 16) {
                                     ForEach(viewModel.messages) { message in
                                         MessageBubbleView(message: message)
+                                            .id(message.id)
                                     }
                                     
                                     // Streaming message with loader
@@ -132,8 +133,9 @@ struct ChatView: View {
                                                 Spacer()
                                             }
                                             .padding(.horizontal, 16)
-                                            .id("streaming")
+                                            .id("loader")
                                         } else {
+                                            // Show streaming message
                                             MessageBubbleView(
                                                 message: Message(text: viewModel.currentStreamingMessage, isUser: false)
                                             )
@@ -146,10 +148,18 @@ struct ChatView: View {
                         }
                         .privacySensitive(shouldHideFromCapture)
                         .onChange(of: viewModel.messages.count) {
-                            // Auto-scroll only when new message is sent
+                            // Auto-scroll when new message is added
                             if let lastMessage = viewModel.messages.last {
-                                withAnimation {
+                                withAnimation(.easeOut(duration: 0.3)) {
                                     proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                                }
+                            }
+                        }
+                        .onChange(of: viewModel.currentStreamingMessage) {
+                            // Auto-scroll during streaming
+                            if viewModel.isLoading && !viewModel.currentStreamingMessage.isEmpty {
+                                withAnimation(.easeOut(duration: 0.2)) {
+                                    proxy.scrollTo("streaming", anchor: .bottom)
                                 }
                             }
                         }

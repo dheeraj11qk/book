@@ -10,7 +10,7 @@ import Foundation
 @MainActor
 class InMemoryRAGService: ObservableObject {
     // MARK: - Configuration
-    private let maxSTMSize = 10 // Last 10 messages
+    private let maxSTMSize = 25 // Increased from 10 to 25 for better context
     private let maxSemanticMemories = 1000
     private let topKRetrieval = 5
     private let similarityThreshold: Float = 0.3
@@ -19,6 +19,10 @@ class InMemoryRAGService: ObservableObject {
     // MARK: - In-Memory Storage
     @Published private(set) var shortTermMemory: [STMItem] = []
     @Published private(set) var semanticMemory: [MemoryItem] = []
+    
+    // MARK: - Topic Tracking (NEW)
+    @Published private(set) var currentTopic: String? = nil
+    @Published private(set) var topicHistory: [TopicItem] = []
     
     private let openAIService = OpenAIService()
     
@@ -80,52 +84,63 @@ class InMemoryRAGService: ObservableObject {
                               text.lowercased().contains("no it's") ||
                               text.lowercased().contains("not ")
             
-            // Extract clean memory sentence using AI
+            // Extract ALL facts using improved prompt
             let extractionPrompt = """
-            Extract a single, concise fact or preference from this message. 
-            Return ONLY the extracted fact in a clear, declarative sentence.
+            Extract ALL facts, preferences, or information from this message.
+            Return each fact as a separate line.
             If this is a correction, extract the CORRECTED information only.
-            If no useful fact exists, return "NONE".
+            If no useful facts exist, return "NONE".
             
             Examples:
-            - "My name is John" → "User's name is John"
-            - "I was born on October 25th 1997" → "User's date of birth is October 25, 1997"
-            - "Actually, it's October 25th" → "User's date of birth is October 25"
-            - "I like pizza" → "User likes pizza"
+            - "My name is John" → User's name is John
+            - "I'm 28 years old and I work at Google" →
+              User is 28 years old
+              User works at Google
+            - "I was born on October 25th 1997" → User's date of birth is October 25, 1997
+            - "Actually, it's October 25th" → User's date of birth is October 25
+            - "I like pizza" → User likes pizza
             
             Message: "\(text)"
             
-            Extracted fact:
+            Facts (one per line):
             """
             
             let extracted = try await openAIService.getSingleResponse(extractionPrompt, model: .gpt35Turbo)
             
-            guard extracted != "NONE" && !extracted.isEmpty && extracted.count > 5 else { return }
+            guard extracted != "NONE" && !extracted.isEmpty else { return }
             
-            // Generate embedding
-            let embedding = try await generateEmbedding(for: extracted)
-            
-            // If this is a correction, remove conflicting memories
-            if isCorrection {
-                await removeConflictingMemories(for: extracted, embedding: embedding)
+            // Parse multiple facts
+            let facts = extracted.split(separator: "\n").map { 
+                String($0).trimmingCharacters(in: .whitespaces) 
             }
             
-            // Check for duplicates or similar memories
-            if let existingIndex = findSimilarMemory(embedding: embedding, threshold: 0.85) {
-                // Update existing memory with new information
-                semanticMemory[existingIndex] = MemoryItem(
-                    text: extracted,
-                    embedding: embedding,
-                    importanceScore: min(1.0, semanticMemory[existingIndex].importanceScore + 0.2)
-                )
-            } else {
-                // Store new memory
-                let memory = MemoryItem(text: extracted, embedding: embedding, importanceScore: 0.6)
-                semanticMemory.append(memory)
+            // Store each fact separately
+            for fact in facts where !fact.isEmpty && fact.count > 5 && fact != "NONE" {
+                // Generate embedding
+                let embedding = try await generateEmbedding(for: fact)
                 
-                // Evict if exceeds limit
-                if semanticMemory.count > maxSemanticMemories {
-                    evictLowestImportance()
+                // If this is a correction, remove conflicting memories
+                if isCorrection {
+                    await removeConflictingMemories(for: fact, embedding: embedding)
+                }
+                
+                // Check for duplicates or similar memories
+                if let existingIndex = findSimilarMemory(embedding: embedding, threshold: 0.85) {
+                    // Update existing memory with new information
+                    semanticMemory[existingIndex] = MemoryItem(
+                        text: fact,
+                        embedding: embedding,
+                        importanceScore: min(1.0, semanticMemory[existingIndex].importanceScore + 0.2)
+                    )
+                } else {
+                    // Store new memory
+                    let memory = MemoryItem(text: fact, embedding: embedding, importanceScore: 0.6)
+                    semanticMemory.append(memory)
+                    
+                    // Evict if exceeds limit
+                    if semanticMemory.count > maxSemanticMemories {
+                        evictLowestImportance()
+                    }
                 }
             }
             
@@ -207,6 +222,20 @@ class InMemoryRAGService: ObservableObject {
         prompt += "You are a helpful AI assistant having a natural conversation.\n"
         prompt += "You have knowledge from previous parts of this conversation.\n\n"
         
+        // Current topic context (NEW)
+        if let topic = currentTopic {
+            prompt += "CURRENT TOPIC: \(topic)\n\n"
+        }
+        
+        // Recent topics (NEW)
+        if !topicHistory.isEmpty {
+            prompt += "RECENT TOPICS DISCUSSED:\n"
+            for topic in topicHistory.suffix(5) {
+                prompt += "- \(topic.topic)\n"
+            }
+            prompt += "\n"
+        }
+        
         // Retrieved memories (most important)
         if !context.memories.isEmpty {
             prompt += "FACTS YOU KNOW:\n"
@@ -229,6 +258,7 @@ class InMemoryRAGService: ObservableObject {
         prompt += "USER: \(query)\n\n"
         prompt += "CRITICAL INSTRUCTIONS:\n"
         prompt += "- Answer NATURALLY like a human would\n"
+        prompt += "- Use the CURRENT TOPIC and RECENT CONVERSATION to understand pronouns (it, them, that, its)\n"
         prompt += "- If you know the answer from the facts above, state it directly and confidently\n"
         prompt += "- NEVER say 'based on retrieved memory' or 'according to memory' or similar phrases\n"
         prompt += "- NEVER mention 'memory', 'storage', 'database', 'embeddings', or technical terms\n"
@@ -238,6 +268,97 @@ class InMemoryRAGService: ObservableObject {
         prompt += "ASSISTANT:"
         
         return prompt
+    }
+    
+    // MARK: - Topic Tracking (NEW)
+    
+    func updateCurrentTopic(from userMessage: String, aiResponse: String) async {
+        // Extract topic from conversation
+        let topicPrompt = """
+        What is the main topic/subject being discussed in this conversation?
+        Return ONLY the topic name in 2-4 words (e.g., "Go programming", "React hooks", "Italian food", "birthday date").
+        If no clear topic, return "general conversation".
+        
+        User: \(userMessage)
+        Assistant: \(aiResponse)
+        
+        Topic:
+        """
+        
+        do {
+            let topic = try await openAIService.getSingleResponse(topicPrompt, model: .gpt35Turbo)
+            let cleanTopic = topic.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            if !cleanTopic.isEmpty && cleanTopic.lowercased() != "general conversation" {
+                currentTopic = cleanTopic
+                
+                // Add to history if it's a new topic
+                if topicHistory.isEmpty || topicHistory.last?.topic != cleanTopic {
+                    topicHistory.append(TopicItem(
+                        topic: cleanTopic,
+                        timestamp: Date(),
+                        relatedKeywords: extractKeywords(from: userMessage)
+                    ))
+                    
+                    // Keep only last 10 topics
+                    if topicHistory.count > 10 {
+                        topicHistory.removeFirst()
+                    }
+                }
+            }
+        } catch {
+            print("Topic extraction error: \(error)")
+        }
+    }
+    
+    func resolvePronoun(in message: String) -> String {
+        var resolved = message
+        let lowercased = message.lowercased()
+        
+        guard let topic = currentTopic else { return message }
+        
+        // Resolve "it" and "It"
+        if lowercased.contains(" it ") || lowercased.starts(with: "it ") || lowercased.hasSuffix(" it") {
+            resolved = resolved.replacingOccurrences(of: " it ", with: " \(topic) ", options: .caseInsensitive)
+            if resolved.lowercased().starts(with: "it ") {
+                resolved = topic + resolved.dropFirst(2)
+            }
+            if resolved.lowercased().hasSuffix(" it") {
+                resolved = String(resolved.dropLast(3)) + " \(topic)"
+            }
+        }
+        
+        // Resolve "them" and "they"
+        if lowercased.contains(" them ") || lowercased.contains(" they ") {
+            resolved = resolved.replacingOccurrences(of: " them ", with: " \(topic) ", options: .caseInsensitive)
+            resolved = resolved.replacingOccurrences(of: " they ", with: " \(topic) ", options: .caseInsensitive)
+        }
+        
+        // Resolve "its" and "their"
+        if lowercased.contains(" its ") || lowercased.contains(" their ") {
+            resolved = resolved.replacingOccurrences(of: " its ", with: " \(topic)'s ", options: .caseInsensitive)
+            resolved = resolved.replacingOccurrences(of: " their ", with: " \(topic)'s ", options: .caseInsensitive)
+        }
+        
+        // Resolve "that" when it refers to the topic
+        if lowercased.contains(" that ") && !lowercased.contains("that is") && !lowercased.contains("that was") {
+            // Only replace if "that" seems to refer to the topic
+            if lowercased.contains("about that") || lowercased.contains("with that") || lowercased.contains("using that") {
+                resolved = resolved.replacingOccurrences(of: " that ", with: " \(topic) ", options: .caseInsensitive)
+            }
+        }
+        
+        return resolved
+    }
+    
+    private func extractKeywords(from text: String) -> [String] {
+        // Simple keyword extraction - split by spaces and filter
+        let words = text.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count > 3 } // Only words longer than 3 characters
+            .filter { !["that", "this", "with", "from", "have", "been", "were", "what", "when", "where"].contains($0) }
+        
+        return Array(Set(words)).prefix(5).map { $0 }
     }
     
     // MARK: - Memory Management
@@ -251,6 +372,8 @@ class InMemoryRAGService: ObservableObject {
     func clearAllMemory() {
         shortTermMemory.removeAll()
         semanticMemory.removeAll()
+        currentTopic = nil
+        topicHistory.removeAll()
     }
     
     private func findSimilarMemory(embedding: [Float], threshold: Float) -> Int? {

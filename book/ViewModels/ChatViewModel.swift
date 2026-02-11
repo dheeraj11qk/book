@@ -28,32 +28,38 @@ class ChatViewModel: ObservableObject {
         
         streamingTask = Task {
             do {
+                // Resolve pronouns BEFORE processing (NEW)
+                let resolvedText = await ragService.resolvePronoun(in: text)
+                
                 // Ingest user message into RAG
-                await ragService.ingestMessage(role: "user", content: text)
+                await ragService.ingestMessage(role: "user", content: resolvedText)
                 
                 // Retrieve context
-                let context = await ragService.retrieveContext(for: text)
+                let context = await ragService.retrieveContext(for: resolvedText)
                 
                 // Build augmented prompt
-                let augmentedPrompt = ragService.buildAugmentedPrompt(query: text, context: context)
+                let augmentedPrompt = ragService.buildAugmentedPrompt(query: resolvedText, context: context)
                 
                 // Stream response
                 try await apiService.streamMessage(augmentedPrompt, model: model) { [weak self] chunk in
                     self?.currentStreamingMessage = chunk
                 }
                 
-                // Add final message
-                if !currentStreamingMessage.isEmpty {
-                    let aiMessage = Message(text: currentStreamingMessage, isUser: false)
+                // Add final message - capture the text first, then clear streaming
+                let finalText = currentStreamingMessage
+                currentStreamingMessage = "" // Clear immediately to prevent duplicate display
+                isLoading = false // Stop loading state
+                
+                if !finalText.isEmpty {
+                    let aiMessage = Message(text: finalText, isUser: false)
                     messages.append(aiMessage)
                     
-                    // Ingest assistant response
-                    await ragService.ingestMessage(role: "assistant", content: currentStreamingMessage)
+                    // Update topic tracking (NEW)
+                    await ragService.updateCurrentTopic(from: resolvedText, aiResponse: finalText)
                     
-                    currentStreamingMessage = ""
+                    // Ingest assistant response
+                    await ragService.ingestMessage(role: "assistant", content: finalText)
                 }
-                
-                isLoading = false
             } catch {
                 let errorMessage = Message(text: "Error: \(error.localizedDescription)", isUser: false)
                 messages.append(errorMessage)
@@ -72,14 +78,17 @@ class ChatViewModel: ObservableObject {
         
         streamingTask = Task {
             do {
+                // Resolve pronouns BEFORE processing (NEW)
+                let resolvedText = await ragService.resolvePronoun(in: text)
+                
                 // Ingest user message
-                await ragService.ingestMessage(role: "user", content: text)
+                await ragService.ingestMessage(role: "user", content: resolvedText)
                 
                 // Retrieve context
-                let context = await ragService.retrieveContext(for: text)
+                let context = await ragService.retrieveContext(for: resolvedText)
                 
                 // Build augmented prompt
-                let augmentedPrompt = ragService.buildAugmentedPrompt(query: text, context: context)
+                let augmentedPrompt = ragService.buildAugmentedPrompt(query: resolvedText, context: context)
                 
                 // Use GPT-4o Mini for vision tasks
                 if let firstImage = images.first {
@@ -88,18 +97,21 @@ class ChatViewModel: ObservableObject {
                     }
                 }
                 
-                // Add final message
-                if !currentStreamingMessage.isEmpty {
-                    let aiMessage = Message(text: currentStreamingMessage, isUser: false)
+                // Add final message - capture the text first, then clear streaming
+                let finalText = currentStreamingMessage
+                currentStreamingMessage = "" // Clear immediately to prevent duplicate display
+                isLoading = false // Stop loading state
+                
+                if !finalText.isEmpty {
+                    let aiMessage = Message(text: finalText, isUser: false)
                     messages.append(aiMessage)
                     
-                    // Ingest assistant response
-                    await ragService.ingestMessage(role: "assistant", content: currentStreamingMessage)
+                    // Update topic tracking (NEW)
+                    await ragService.updateCurrentTopic(from: resolvedText, aiResponse: finalText)
                     
-                    currentStreamingMessage = ""
+                    // Ingest assistant response
+                    await ragService.ingestMessage(role: "assistant", content: finalText)
                 }
-                
-                isLoading = false
             } catch {
                 let errorMessage = Message(text: "Error: \(error.localizedDescription)", isUser: false)
                 messages.append(errorMessage)

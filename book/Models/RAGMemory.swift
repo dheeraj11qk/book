@@ -45,3 +45,18 @@ struct RetrievedContext {
     let recentMessages: [STMItem]
     let relevanceScores: [Float]
 }
+
+// MARK: - Topic Item (Topic Tracking)
+struct TopicItem: Identifiable {
+    let id: UUID
+    let topic: String
+    let timestamp: Date
+    let relatedKeywords: [String]
+    
+    init(topic: String, timestamp: Date, relatedKeywords: [String]) {
+        self.id = UUID()
+        self.topic = topic
+        self.timestamp = timestamp
+        self.relatedKeywords = relatedKeywords
+    }
+}
