@@ -24,7 +24,15 @@ class InMemoryRAGService: ObservableObject {
     @Published private(set) var currentTopic: String? = nil
     @Published private(set) var topicHistory: [TopicItem] = []
     
+    // MARK: - Custom AI Rules
+    private var customRules: [String] = []
+    
     private let openAIService = OpenAIService()
+    
+    // MARK: - Initialization
+    init() {
+        loadCustomRules()
+    }
     
     // MARK: - Memory Ingestion (WRITE)
     
@@ -212,6 +220,29 @@ class InMemoryRAGService: ObservableObject {
         }
     }
     
+    // MARK: - Custom Rules Management
+    
+    private func loadCustomRules() {
+        // Try to load custom rules from AIRules.txt
+        if let rulesPath = Bundle.main.path(forResource: "AIRules", ofType: "txt"),
+           let rulesContent = try? String(contentsOfFile: rulesPath, encoding: .utf8) {
+            
+            // Parse rules: ignore comments (#) and empty lines
+            customRules = rulesContent
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+            
+            print("✅ Loaded \(customRules.count) custom AI rules")
+        } else {
+            print("ℹ️ No custom AI rules file found (AIRules.txt)")
+        }
+    }
+    
+    func reloadCustomRules() {
+        loadCustomRules()
+    }
+    
     // MARK: - Prompt Augmentation (RAG)
     
     func buildAugmentedPrompt(query: String, context: RetrievedContext) -> String {
@@ -264,8 +295,18 @@ class InMemoryRAGService: ObservableObject {
         prompt += "- NEVER mention 'memory', 'storage', 'database', 'embeddings', or technical terms\n"
         prompt += "- If you DON'T know something, simply say 'I don't know' or 'I don't have that information'\n"
         prompt += "- Be conversational and natural\n"
-        prompt += "- Answer as if you naturally remember things from earlier in the conversation\n\n"
-        prompt += "ASSISTANT:"
+        prompt += "- Answer as if you naturally remember things from earlier in the conversation\n"
+        
+        // Add custom rules if any (NEW)
+        if !customRules.isEmpty {
+            prompt += "\n"
+            prompt += "ADDITIONAL CUSTOM RULES:\n"
+            for rule in customRules {
+                prompt += "- \(rule)\n"
+            }
+        }
+        
+        prompt += "\nASSISTANT:"
         
         return prompt
     }
