@@ -253,12 +253,19 @@ class InMemoryRAGService: ObservableObject {
         prompt += "You are a helpful AI assistant having a natural conversation.\n"
         prompt += "You have knowledge from previous parts of this conversation.\n\n"
         
-        // Current topic context (NEW)
+        // User summary (NEW - from settings)
+        let userSummary = UserDefaults.standard.userSummary
+        if !userSummary.isEmpty {
+            prompt += "USER SUMMARY:\n"
+            prompt += "\(userSummary)\n\n"
+        }
+        
+        // Current topic context
         if let topic = currentTopic {
             prompt += "CURRENT TOPIC: \(topic)\n\n"
         }
         
-        // Recent topics (NEW)
+        // Recent topics
         if !topicHistory.isEmpty {
             prompt += "RECENT TOPICS DISCUSSED:\n"
             for topic in topicHistory.suffix(5) {
@@ -297,7 +304,7 @@ class InMemoryRAGService: ObservableObject {
         prompt += "- Be conversational and natural\n"
         prompt += "- Answer as if you naturally remember things from earlier in the conversation\n"
         
-        // Add custom rules if any (NEW)
+        // Add custom rules if any
         if !customRules.isEmpty {
             prompt += "\n"
             prompt += "ADDITIONAL CUSTOM RULES:\n"

@@ -15,6 +15,7 @@ extension UserDefaults {
         static let groqAPIKey = "groqAPIKey"
         static let selectedAIProvider = "selectedAIProvider"
         static let voiceEnhancementEnabled = "voiceEnhancementEnabled"
+        static let userSummary = "userSummary"
     }
     
     // Convenience methods for settings
@@ -47,5 +48,10 @@ extension UserDefaults {
             return bool(forKey: Keys.voiceEnhancementEnabled)
         }
         set { set(newValue, forKey: Keys.voiceEnhancementEnabled) }
+    }
+    
+    var userSummary: String {
+        get { string(forKey: Keys.userSummary) ?? "" }
+        set { set(newValue, forKey: Keys.userSummary) }
     }
 }

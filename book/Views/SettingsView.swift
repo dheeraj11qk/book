@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var groqAPIKey: String = UserDefaults.standard.groqAPIKey
     @State private var selectedAIProvider: String = UserDefaults.standard.selectedAIProvider
     @State private var voiceEnhancementEnabled: Bool = UserDefaults.standard.voiceEnhancementEnabled
+    @State private var userSummary: String = UserDefaults.standard.userSummary
     @State private var showingOpenAIKeyEditor = false
     @State private var showingGroqKeyEditor = false
     @State private var showingSaveAlert = false
@@ -69,6 +70,7 @@ struct SettingsView: View {
     private var settingsContentView: some View {
         ScrollView {
             VStack(spacing: 20) {
+                userSummarySection
                 privacySection
                 voiceEnhancementSection
                 apiConfigSection
@@ -77,6 +79,40 @@ struct SettingsView: View {
             .padding()
         }
         .background(Color.black.opacity(0.8))
+    }
+    
+    private var userSummarySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Your Summary")
+                .font(.headline)
+                .foregroundColor(.white)
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Resume / Profile Summary")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+                
+                TextEditor(text: $userSummary)
+                    .frame(minHeight: 120, maxHeight: 200)
+                    .padding(8)
+                    .background(Color.black)
+                    .cornerRadius(8)
+                    .foregroundColor(.white)
+                    .font(.system(size: 14))
+                    .scrollContentBackground(.hidden)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.gray.opacity(0.5), lineWidth: 1)
+                    )
+                
+                Text("Add your resume summary, skills, experience, or any personal context you want the AI to know about you.")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            .padding()
+            .background(Color.gray.opacity(0.2))
+            .cornerRadius(10)
+        }
     }
     
     private var privacySection: some View {
@@ -214,6 +250,7 @@ struct SettingsView: View {
         UserDefaults.standard.groqAPIKey = groqAPIKey
         UserDefaults.standard.selectedAIProvider = selectedAIProvider
         UserDefaults.standard.voiceEnhancementEnabled = voiceEnhancementEnabled
+        UserDefaults.standard.userSummary = userSummary
         
         showingSaveAlert = true
         
