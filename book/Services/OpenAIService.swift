@@ -25,6 +25,61 @@ class OpenAIService {
     
     // MARK: - Chat Completion (Text)
     
+    func streamMessageWithSystem(systemPrompt: String, userPrompt: String, model: AIModel, onChunk: @escaping (String) -> Void) async throws {
+        let url = URL(string: "\(baseURL)/chat/completions")!
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        
+        let requestBody = ChatRequest(
+            model: model.rawValue,
+            messages: [
+                ChatMessage(role: "system", content: systemPrompt),
+                ChatMessage(role: "user", content: userPrompt)
+            ],
+            stream: true
+        )
+        
+        request.httpBody = try JSONEncoder().encode(requestBody)
+        
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+        
+        var buffer = ""
+        
+        for try await line in bytes.lines {
+            if Task.isCancelled {
+                break
+            }
+            
+            if line.hasPrefix("data: ") {
+                let data = line.dropFirst(6)
+                
+                if data == "[DONE]" {
+                    break
+                }
+                
+                if let jsonData = data.data(using: .utf8),
+                   let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                   let choices = json["choices"] as? [[String: Any]],
+                   let firstChoice = choices.first,
+                   let delta = firstChoice["delta"] as? [String: Any],
+                   let content = delta["content"] as? String {
+                    buffer += content
+                    await MainActor.run {
+                        onChunk(buffer)
+                    }
+                }
+            }
+        }
+    }
+    
     func streamMessage(_ message: String, model: AIModel, onChunk: @escaping (String) -> Void) async throws {
         let url = URL(string: "\(baseURL)/chat/completions")!
         
@@ -112,6 +167,76 @@ class OpenAIService {
     }
     
     // MARK: - Vision (Image + Text)
+    
+    func sendMessageWithImageAndSystem(systemPrompt: String, userPrompt: String, image: NSImage, model: AIModel, onChunk: @escaping (String) -> Void) async throws {
+        let url = URL(string: "\(baseURL)/chat/completions")!
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        
+        // Convert image to base64
+        guard let tiffData = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiffData),
+              let pngData = bitmap.representation(using: .png, properties: [:]) else {
+            throw APIError.invalidResponse
+        }
+        
+        let base64Image = pngData.base64EncodedString()
+        
+        let messageContent: [[String: Any]] = [
+            ["type": "text", "text": userPrompt],
+            ["type": "image_url", "image_url": ["url": "data:image/png;base64,\(base64Image)"]]
+        ]
+        
+        let requestBody: [String: Any] = [
+            "model": model.rawValue,
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": messageContent]
+            ],
+            "stream": true,
+            "max_tokens": 1000
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+        
+        var buffer = ""
+        
+        for try await line in bytes.lines {
+            if Task.isCancelled {
+                break
+            }
+            
+            if line.hasPrefix("data: ") {
+                let data = line.dropFirst(6)
+                
+                if data == "[DONE]" {
+                    break
+                }
+                
+                if let jsonData = data.data(using: .utf8),
+                   let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                   let choices = json["choices"] as? [[String: Any]],
+                   let firstChoice = choices.first,
+                   let delta = firstChoice["delta"] as? [String: Any],
+                   let content = delta["content"] as? String {
+                    buffer += content
+                    await MainActor.run {
+                        onChunk(buffer)
+                    }
+                }
+            }
+        }
+    }
     
     func sendMessageWithImage(_ message: String, image: NSImage, model: AIModel, onChunk: @escaping (String) -> Void) async throws {
         let url = URL(string: "\(baseURL)/chat/completions")!

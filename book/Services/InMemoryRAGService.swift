@@ -245,15 +245,39 @@ class InMemoryRAGService: ObservableObject {
     
     // MARK: - Prompt Augmentation (RAG)
     
+    func buildSystemPrompt() -> String {
+        var systemPrompt = ""
+        
+        // Base system instructions
+        systemPrompt += "You are a helpful AI assistant having a natural conversation.\n"
+        systemPrompt += "You have knowledge from previous parts of this conversation.\n\n"
+        
+        systemPrompt += "CRITICAL INSTRUCTIONS:\n"
+        systemPrompt += "- Answer NATURALLY like a human would\n"
+        systemPrompt += "- Use the CURRENT TOPIC and RECENT CONVERSATION to understand pronouns (it, them, that, its)\n"
+        systemPrompt += "- If you know the answer from the facts provided, state it directly and confidently\n"
+        systemPrompt += "- NEVER say 'based on retrieved memory' or 'according to memory' or similar phrases\n"
+        systemPrompt += "- NEVER mention 'memory', 'storage', 'database', 'embeddings', or technical terms\n"
+        systemPrompt += "- If you DON'T know something, simply say 'I don't know' or 'I don't have that information'\n"
+        systemPrompt += "- Be conversational and natural\n"
+        systemPrompt += "- Answer as if you naturally remember things from earlier in the conversation\n"
+        
+        // Add custom rules if any
+        if !customRules.isEmpty {
+            systemPrompt += "\n"
+            systemPrompt += "ADDITIONAL CUSTOM RULES:\n"
+            for rule in customRules {
+                systemPrompt += "- \(rule)\n"
+            }
+        }
+        
+        return systemPrompt
+    }
+    
     func buildAugmentedPrompt(query: String, context: RetrievedContext) -> String {
         var prompt = ""
         
-        // System context
-        prompt += "SYSTEM CONTEXT:\n"
-        prompt += "You are a helpful AI assistant having a natural conversation.\n"
-        prompt += "You have knowledge from previous parts of this conversation.\n\n"
-        
-        // User summary (NEW - from settings)
+        // User summary (from settings)
         let userSummary = UserDefaults.standard.userSummary
         if !userSummary.isEmpty {
             prompt += "USER SUMMARY:\n"
@@ -262,21 +286,13 @@ class InMemoryRAGService: ObservableObject {
         
         // Current topic context
         if let topic = currentTopic {
-            prompt += "CURRENT TOPIC: \(topic)\n\n"
-        }
-        
-        // Recent topics
-        if !topicHistory.isEmpty {
-            prompt += "RECENT TOPICS DISCUSSED:\n"
-            for topic in topicHistory.suffix(5) {
-                prompt += "- \(topic.topic)\n"
-            }
-            prompt += "\n"
+            prompt += "CURRENT TOPIC:\n"
+            prompt += "\(topic)\n\n"
         }
         
         // Retrieved memories (most important)
         if !context.memories.isEmpty {
-            prompt += "FACTS YOU KNOW:\n"
+            prompt += "KNOWN FACTS:\n"
             for memory in context.memories {
                 prompt += "- \(memory.text)\n"
             }
@@ -293,27 +309,8 @@ class InMemoryRAGService: ObservableObject {
         }
         
         // Current question
-        prompt += "USER: \(query)\n\n"
-        prompt += "CRITICAL INSTRUCTIONS:\n"
-        prompt += "- Answer NATURALLY like a human would\n"
-        prompt += "- Use the CURRENT TOPIC and RECENT CONVERSATION to understand pronouns (it, them, that, its)\n"
-        prompt += "- If you know the answer from the facts above, state it directly and confidently\n"
-        prompt += "- NEVER say 'based on retrieved memory' or 'according to memory' or similar phrases\n"
-        prompt += "- NEVER mention 'memory', 'storage', 'database', 'embeddings', or technical terms\n"
-        prompt += "- If you DON'T know something, simply say 'I don't know' or 'I don't have that information'\n"
-        prompt += "- Be conversational and natural\n"
-        prompt += "- Answer as if you naturally remember things from earlier in the conversation\n"
-        
-        // Add custom rules if any
-        if !customRules.isEmpty {
-            prompt += "\n"
-            prompt += "ADDITIONAL CUSTOM RULES:\n"
-            for rule in customRules {
-                prompt += "- \(rule)\n"
-            }
-        }
-        
-        prompt += "\nASSISTANT:"
+        prompt += "USER QUESTION:\n"
+        prompt += "\(query)"
         
         return prompt
     }

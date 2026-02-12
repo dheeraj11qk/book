@@ -19,7 +19,7 @@ class ChatViewModel: ObservableObject {
     private let ragService = InMemoryRAGService()
     private var streamingTask: Task<Void, Never>?
     
-    func sendMessage(_ text: String, model: AIModel = .gpt35Turbo) {
+    func sendMessage(_ text: String, model: AIModel = .gpt4Turbo) {
         let userMessage = Message(text: text, isUser: true)
         messages.append(userMessage)
         
@@ -28,7 +28,7 @@ class ChatViewModel: ObservableObject {
         
         streamingTask = Task {
             do {
-                // Resolve pronouns BEFORE processing (NEW)
+                // Resolve pronouns BEFORE processing
                 let resolvedText = await ragService.resolvePronoun(in: text)
                 
                 // Ingest user message into RAG
@@ -37,11 +37,14 @@ class ChatViewModel: ObservableObject {
                 // Retrieve context
                 let context = await ragService.retrieveContext(for: resolvedText)
                 
-                // Build augmented prompt
-                let augmentedPrompt = ragService.buildAugmentedPrompt(query: resolvedText, context: context)
+                // Build system prompt (rules + instructions)
+                let systemPrompt = ragService.buildSystemPrompt()
                 
-                // Stream response
-                try await apiService.streamMessage(augmentedPrompt, model: model) { [weak self] chunk in
+                // Build user prompt (context + question)
+                let userPrompt = ragService.buildAugmentedPrompt(query: resolvedText, context: context)
+                
+                // Stream response with system and user messages
+                try await apiService.streamMessageWithSystem(systemPrompt: systemPrompt, userPrompt: userPrompt, model: model) { [weak self] chunk in
                     self?.currentStreamingMessage = chunk
                 }
                 
@@ -54,7 +57,7 @@ class ChatViewModel: ObservableObject {
                     let aiMessage = Message(text: finalText, isUser: false)
                     messages.append(aiMessage)
                     
-                    // Update topic tracking (NEW)
+                    // Update topic tracking
                     await ragService.updateCurrentTopic(from: resolvedText, aiResponse: finalText)
                     
                     // Ingest assistant response
@@ -78,7 +81,7 @@ class ChatViewModel: ObservableObject {
         
         streamingTask = Task {
             do {
-                // Resolve pronouns BEFORE processing (NEW)
+                // Resolve pronouns BEFORE processing
                 let resolvedText = await ragService.resolvePronoun(in: text)
                 
                 // Ingest user message
@@ -87,12 +90,15 @@ class ChatViewModel: ObservableObject {
                 // Retrieve context
                 let context = await ragService.retrieveContext(for: resolvedText)
                 
-                // Build augmented prompt
-                let augmentedPrompt = ragService.buildAugmentedPrompt(query: resolvedText, context: context)
+                // Build system prompt (rules + instructions)
+                let systemPrompt = ragService.buildSystemPrompt()
+                
+                // Build user prompt (context + question)
+                let userPrompt = ragService.buildAugmentedPrompt(query: resolvedText, context: context)
                 
                 // Use GPT-4o Mini for vision tasks
                 if let firstImage = images.first {
-                    try await apiService.sendMessageWithImage(augmentedPrompt, image: firstImage, model: .gpt4oMini) { [weak self] chunk in
+                    try await apiService.sendMessageWithImageAndSystem(systemPrompt: systemPrompt, userPrompt: userPrompt, image: firstImage, model: .gpt4oMini) { [weak self] chunk in
                         self?.currentStreamingMessage = chunk
                     }
                 }
@@ -106,7 +112,7 @@ class ChatViewModel: ObservableObject {
                     let aiMessage = Message(text: finalText, isUser: false)
                     messages.append(aiMessage)
                     
-                    // Update topic tracking (NEW)
+                    // Update topic tracking
                     await ragService.updateCurrentTopic(from: resolvedText, aiResponse: finalText)
                     
                     // Ingest assistant response

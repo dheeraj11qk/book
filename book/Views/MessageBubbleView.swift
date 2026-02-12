@@ -134,42 +134,42 @@ struct FormattedMarkdownText: View {
             // H1
             Text(trimmed.dropFirst(2))
                 .font(.system(size: 24, weight: .bold))
-                .foregroundColor(.white)
+              
         } else if trimmed.hasPrefix("## ") {
             // H2
             Text(trimmed.dropFirst(3))
                 .font(.system(size: 20, weight: .bold))
-                .foregroundColor(.white)
+               
         } else if trimmed.hasPrefix("### ") {
             // H3
             Text(trimmed.dropFirst(4))
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.white)
+               
         } else if let match = trimmed.range(of: #"^\d+\.\s+"#, options: .regularExpression) {
             // Numbered list
             HStack(alignment: .top, spacing: 8) {
                 Text(String(trimmed[match]))
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
+                 
                 Text(formatInlineStyles(String(trimmed[match.upperBound...])))
                     .font(.system(size: 16))
-                    .foregroundColor(.white)
+                   
             }
         } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
             // Bullet list
             HStack(alignment: .top, spacing: 8) {
                 Text("•")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
+                   
                 Text(formatInlineStyles(String(trimmed.dropFirst(2))))
                     .font(.system(size: 16))
-                    .foregroundColor(.white)
+                   
             }
         } else {
             // Regular text
             Text(formatInlineStyles(trimmed))
                 .font(.system(size: 16))
-                .foregroundColor(.white)
+           
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -177,42 +177,109 @@ struct FormattedMarkdownText: View {
     private func formatInlineStyles(_ text: String) -> AttributedString {
         var attributed = AttributedString(text)
         
-        // Bold **text**
-        if let boldRegex = try? NSRegularExpression(pattern: "\\*\\*(.+?)\\*\\*", options: []) {
+        // Default color
+        attributed.foregroundColor = .white
+
+        // ---------- KEYWORD TAG ----------
+        if let keywordRegex = try? NSRegularExpression(
+            pattern: "<keyword>(.+?)</keyword>",
+            options: []
+        ) {
             let nsString = text as NSString
-            let matches = boldRegex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+            let matches = keywordRegex.matches(
+                in: text,
+                options: [],
+                range: NSRange(location: 0, length: nsString.length)
+            )
+
+            for match in matches.reversed() {
+                if let range = Range(match.range(at: 1), in: text) {
+                    let keywordText = String(text[range])
+
+                    if let fullTagRange = attributed.range(of: "<keyword>\(keywordText)</keyword>") {
+                        attributed.replaceSubrange(fullTagRange, with: AttributedString(keywordText))
+
+                        if let newRange = attributed.range(of: keywordText) {
+                            attributed[newRange].font = .system(size: 16, weight: .bold)
+                            attributed[newRange].foregroundColor = .blue
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---------- MARKDOWN BOLD ----------
+        if let boldRegex = try? NSRegularExpression(
+            pattern: "\\*\\*(.+?)\\*\\*",
+            options: []
+        ) {
+            let nsString = text as NSString
+            let matches = boldRegex.matches(
+                in: text,
+                options: [],
+                range: NSRange(location: 0, length: nsString.length)
+            )
+
             for match in matches.reversed() {
                 if let range = Range(match.range(at: 1), in: text) {
                     let boldText = String(text[range])
-                    if let attrRange = attributed.range(of: "**\(boldText)**") {
-                        attributed.replaceSubrange(attrRange, with: AttributedString(boldText))
+
+                    if let fullRange = attributed.range(of: "**\(boldText)**") {
+                        attributed.replaceSubrange(fullRange, with: AttributedString(boldText))
+
                         if let newRange = attributed.range(of: boldText) {
                             attributed[newRange].font = .system(size: 16, weight: .bold)
+                            attributed[newRange].foregroundColor = .white
                         }
                     }
                 }
             }
         }
-        
-        // Italic *text*
-        if let italicRegex = try? NSRegularExpression(pattern: "(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)", options: []) {
-            let nsString = text as NSString
-            let matches = italicRegex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
-            for match in matches.reversed() {
-                if let range = Range(match.range(at: 1), in: text) {
-                    let italicText = String(text[range])
-                    if let attrRange = attributed.range(of: "*\(italicText)*") {
-                        attributed.replaceSubrange(attrRange, with: AttributedString(italicText))
-                        if let newRange = attributed.range(of: italicText) {
-                            attributed[newRange].font = .system(size: 16).italic()
-                        }
-                    }
-                }
-            }
-        }
-        
+
         return attributed
     }
+    
+//    private func formatInlineStyles(_ text: String) -> AttributedString {
+//        var attributed = AttributedString(text)
+//        
+//        attributed.foregroundColor = .white
+//        
+//        // Bold **text**
+//        if let boldRegex = try? NSRegularExpression(pattern: "\\*\\*(.+?)\\*\\*", options: []) {
+//            let nsString = text as NSString
+//            let matches = boldRegex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+//            for match in matches.reversed() {
+//                if let range = Range(match.range(at: 1), in: text) {
+//                    let boldText = String(text[range])
+//                    if let attrRange = attributed.range(of: "**\(boldText)**") {
+//                        attributed.replaceSubrange(attrRange, with: AttributedString(boldText))
+//                        if let newRange = attributed.range(of: boldText) {
+//                            attributed[newRange].font = .system(size: 16, weight: .bold)
+//                          
+//                    }
+//                }
+//            }
+//        }
+//        
+//        // Italic *text*
+//        if let italicRegex = try? NSRegularExpression(pattern: "(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)", options: []) {
+//            let nsString = text as NSString
+//            let matches = italicRegex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+//            for match in matches.reversed() {
+//                if let range = Range(match.range(at: 1), in: text) {
+//                    let italicText = String(text[range])
+//                    if let attrRange = attributed.range(of: "*\(italicText)*") {
+//                        attributed.replaceSubrange(attrRange, with: AttributedString(italicText))
+//                        if let newRange = attributed.range(of: italicText) {
+//                            attributed[newRange].font = .system(size: 16).italic()
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//        
+//        return attributed
+//    }
 }
 
 struct TextPart {

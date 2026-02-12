@@ -77,3 +77,25 @@
 - No repetition
 - No meta commentary
 
+# ===== KEYWORD MARKUP RULE =====
+- Important interview-level technical concepts MUST be wrapped as <keyword>word</keyword>
+- Highlight dynamically based on the topic (topic can be anything)
+- Always highlight:
+  1. The core concept name
+  2. The defining mechanism (how it works)
+  3. Any constraint or key property that differentiates it
+- Prefer meaningful technical phrases over single nouns
+- Do NOT wrap full sentences
+- Do NOT overuse tags (2–4 per explanation is ideal)
+- Do NOT use markdown bold
+
+
+# ===== FORMAT ENFORCEMENT =====
+- Technical answers WITHOUT <keyword> tags are INVALID.
+- You MUST include 2–4 <keyword> tags in every technical explanation.
+- Always highlight:
+  1. The core concept name
+  2. The defining mechanism (how it works)
+  3. The key constraint or differentiator
+- If no tags are included, regenerate the answer internally before responding.
+- Formatting rules override tone rules.
