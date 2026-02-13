@@ -160,7 +160,7 @@ struct FormattedMarkdownText: View {
             HStack(alignment: .top, spacing: 8) {
                 Text("•")
                     .font(.system(size: 16, weight: .bold))
-                   
+                    .foregroundColor(.white)
                 Text(formatInlineStyles(String(trimmed.dropFirst(2))))
                     .font(.system(size: 16))
                    
