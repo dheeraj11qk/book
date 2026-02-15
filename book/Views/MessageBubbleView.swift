@@ -32,6 +32,7 @@ struct MessageBubbleView: View {
                     Text(message.text)
                         .font(.system(size: 16))
                         .foregroundColor(.white)
+                        .textSelection(.enabled)
                         .padding(12)
                         .background(Color(red: 0.3, green: 0.3, blue: 0.3).opacity(0.9))
                         .cornerRadius(12)
@@ -134,26 +135,26 @@ struct FormattedMarkdownText: View {
             // H1
             Text(trimmed.dropFirst(2))
                 .font(.system(size: 24, weight: .bold))
-              
+                .textSelection(.enabled)
         } else if trimmed.hasPrefix("## ") {
             // H2
             Text(trimmed.dropFirst(3))
                 .font(.system(size: 20, weight: .bold))
-               
+                .textSelection(.enabled)
         } else if trimmed.hasPrefix("### ") {
             // H3
             Text(trimmed.dropFirst(4))
                 .font(.system(size: 18, weight: .semibold))
-               
+                .textSelection(.enabled)
         } else if let match = trimmed.range(of: #"^\d+\.\s+"#, options: .regularExpression) {
             // Numbered list
             HStack(alignment: .top, spacing: 8) {
                 Text(String(trimmed[match]))
                     .font(.system(size: 16, weight: .semibold))
-                 
+                    .textSelection(.enabled)
                 Text(formatInlineStyles(String(trimmed[match.upperBound...])))
                     .font(.system(size: 16))
-                   
+                    .textSelection(.enabled)
             }
         } else if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
             // Bullet list
@@ -161,15 +162,16 @@ struct FormattedMarkdownText: View {
                 Text("•")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.white)
+                    .textSelection(.enabled)
                 Text(formatInlineStyles(String(trimmed.dropFirst(2))))
                     .font(.system(size: 16))
-                   
+                    .textSelection(.enabled)
             }
         } else {
             // Regular text
             Text(formatInlineStyles(trimmed))
                 .font(.system(size: 16))
-           
+                .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -344,6 +346,7 @@ struct SyntaxHighlightedText: View {
     var body: some View {
         Text(highlightedCode())
             .font(.system(size: 14, design: .monospaced))
+            .textSelection(.enabled)
     }
     
     private func highlightedCode() -> AttributedString {
