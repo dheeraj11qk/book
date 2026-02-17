@@ -26,6 +26,10 @@ class OpenAIService {
     // MARK: - Chat Completion (Text)
     
     func streamMessageWithSystem(systemPrompt: String, userPrompt: String, model: AIModel, onChunk: @escaping (String) -> Void) async throws {
+        print("The length of the userPrompt is: \(userPrompt.count)")
+        print("The length of the systemPrompt is: \(systemPrompt.count)")
+        
+    
         let url = URL(string: "\(baseURL)/chat/completions")!
         
         var request = URLRequest(url: url)

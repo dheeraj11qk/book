@@ -207,7 +207,7 @@ struct FormattedMarkdownText: View {
 
                         if let newRange = attributed.range(of: keywordText) {
                             attributed[newRange].font = .system(size: 16, weight: .bold)
-                            attributed[newRange].foregroundColor = .blue
+                            attributed[newRange].foregroundColor = .blue// Light blue, visible on dark background
                         }
                     }
                 }
