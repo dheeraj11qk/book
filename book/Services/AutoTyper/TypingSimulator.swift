@@ -13,18 +13,103 @@ import Carbon
 class TypingSimulator {
     private var isTyping: Bool = false
     private var shouldStop: Bool = false
+    private var isPaused: Bool = false
+    private let behaviorEngine = TypingBehaviorEngine()
     
-    /// Types the given text with human-like delays and speed variations
+    /// Types the given text with AI-enhanced human-like behavior
     /// - Parameters:
     ///   - text: The text to type
+    ///   - useAIBehavior: Whether to use AI-enhanced human behavior (typos, pauses, etc.)
     ///   - onSpeedChange: Callback when speed mode changes
     ///   - completion: Callback when typing completes or stops
-    func typeText(_ text: String, onSpeedChange: @escaping (SpeedMode) -> Void, completion: @escaping () -> Void) {
+    func typeText(_ text: String, useAIBehavior: Bool = true, onSpeedChange: @escaping (SpeedMode) -> Void, completion: @escaping () -> Void) {
         guard !isTyping else { return }
         
         isTyping = true
         shouldStop = false
         
+        if useAIBehavior {
+            typeWithAIBehavior(text, onSpeedChange: onSpeedChange, completion: completion)
+        } else {
+            typeWithBasicBehavior(text, onSpeedChange: onSpeedChange, completion: completion)
+        }
+    }
+    
+    /// Types text with AI-enhanced human behavior (typos, thinking pauses, etc.)
+    private func typeWithAIBehavior(_ text: String, onSpeedChange: @escaping (SpeedMode) -> Void, completion: @escaping () -> Void) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self = self else { return }
+            
+            // Generate typing events with human imperfections
+            let events = self.behaviorEngine.generateTypingEvents(for: text)
+            
+            var currentMode = SpeedMode.normal
+            DispatchQueue.main.async {
+                onSpeedChange(currentMode)
+            }
+            
+            for event in events {
+                if self.shouldStop {
+                    break
+                }
+                
+                // Wait while paused
+                while self.isPaused && !self.shouldStop {
+                    Thread.sleep(forTimeInterval: 0.1)
+                }
+                
+                if self.shouldStop {
+                    break
+                }
+                
+                switch event {
+                case .typeCharacter(let char):
+                    _ = self.postKeyEvent(for: char)
+                    let delay = self.getDelay(for: currentMode)
+                    Thread.sleep(forTimeInterval: delay)
+                    
+                case .typeBackspace:
+                    self.postBackspaceEvent()
+                    Thread.sleep(forTimeInterval: 0.1)
+                    
+                case .typeEnter:
+                    self.postEnterEvent()
+                    Thread.sleep(forTimeInterval: 0.1)
+                    
+                case .pause(let duration):
+                    // Update speed mode to "thinking" during long pauses
+                    if duration > 0.3 {
+                        currentMode = .thinking
+                        DispatchQueue.main.async {
+                            onSpeedChange(currentMode)
+                        }
+                    }
+                    Thread.sleep(forTimeInterval: duration)
+                    
+                    // Return to normal speed after thinking
+                    if duration > 0.3 {
+                        currentMode = .normal
+                        DispatchQueue.main.async {
+                            onSpeedChange(currentMode)
+                        }
+                    }
+                }
+            }
+            
+            self.isTyping = false
+            DispatchQueue.main.async {
+                completion()
+            }
+        }
+    }
+    
+    /// Sets the AI-identified difficult words for the behavior engine
+    func setDifficultWords(_ words: Set<String>, pausePoints: Set<Int>) {
+        behaviorEngine.setDifficultWords(words, pausePoints: pausePoints)
+    }
+    
+    /// Types text with basic human-like behavior (original implementation)
+    private func typeWithBasicBehavior(_ text: String, onSpeedChange: @escaping (SpeedMode) -> Void, completion: @escaping () -> Void) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             
@@ -38,6 +123,15 @@ class TypingSimulator {
             
             for character in text {
                 // Check if stop was requested
+                if self.shouldStop {
+                    break
+                }
+                
+                // Wait while paused
+                while self.isPaused && !self.shouldStop {
+                    Thread.sleep(forTimeInterval: 0.1)
+                }
+                
                 if self.shouldStop {
                     break
                 }
@@ -80,6 +174,17 @@ class TypingSimulator {
     /// Stops the current typing operation immediately
     func stop() {
         shouldStop = true
+        isPaused = false
+    }
+    
+    /// Pauses the current typing operation
+    func pause() {
+        isPaused = true
+    }
+    
+    /// Resumes the paused typing operation
+    func resume() {
+        isPaused = false
     }
     
     /// Returns a random delay within the speed mode's range
@@ -129,5 +234,35 @@ class TypingSimulator {
         keyUpEvent.post(tap: .cghidEventTap)
         
         return true
+    }
+    
+    /// Posts a backspace key event
+    private func postBackspaceEvent() {
+        let keyCode: CGKeyCode = 51 // Backspace key code
+        
+        if let keyDownEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true) {
+            keyDownEvent.post(tap: .cghidEventTap)
+        }
+        
+        Thread.sleep(forTimeInterval: 0.01)
+        
+        if let keyUpEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) {
+            keyUpEvent.post(tap: .cghidEventTap)
+        }
+    }
+    
+    /// Posts an enter/return key event
+    private func postEnterEvent() {
+        let keyCode: CGKeyCode = 36 // Return key code
+        
+        if let keyDownEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true) {
+            keyDownEvent.post(tap: .cghidEventTap)
+        }
+        
+        Thread.sleep(forTimeInterval: 0.01)
+        
+        if let keyUpEvent = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) {
+            keyUpEvent.post(tap: .cghidEventTap)
+        }
     }
 }

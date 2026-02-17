@@ -13,50 +13,103 @@ struct AutoTypeOverlay: View {
     
     var body: some View {
         HStack(spacing: 8) {
-            switch viewModel.state {
-            case .idle:
-                Text("Auto Type")
+            // Show AI processing state
+            if viewModel.isProcessingAI {
+                Text("Processing...")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.white)
+                    .foregroundColor(.blue)
                 
                 Button(action: {
-                    viewModel.startAutoType()
+                    viewModel.stop()
                 }) {
-                    Image(systemName: "play.fill")
+                    Image(systemName: "stop.fill")
                         .font(.system(size: 11))
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(PlainButtonStyle())
+            } else {
+                switch viewModel.state {
+                case .idle:
+                    Text("Auto Type")
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.white)
+                    
+                    Button(action: {
+                        viewModel.startAutoType()
+                    }) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.white)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                case .countdown(let count):
+                    Text("\(count)")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.orange)
+                        .frame(minWidth: 18)
+                    
+                    Button(action: {
+                        viewModel.stop()
+                    }) {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                case .typing(let mode):
+                    Text(mode.rawValue)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.green)
+                        .lineLimit(1)
+                    
+                    // Pause button
+                    Button(action: {
+                        viewModel.pause()
+                    }) {
+                        Image(systemName: "pause.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.yellow)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    // Stop button
+                    Button(action: {
+                        viewModel.stop()
+                    }) {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                case .paused(let mode):
+                    Text(mode.rawValue)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.yellow)
+                        .lineLimit(1)
+                    
+                    // Resume button
+                    Button(action: {
+                        viewModel.resume()
+                    }) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.green)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    // Stop button
+                    Button(action: {
+                        viewModel.stop()
+                    }) {
+                        Image(systemName: "stop.fill")
+                            .font(.system(size: 11))
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
-                .buttonStyle(PlainButtonStyle())
-                
-            case .countdown(let count):
-                Text("\(count)")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.orange)
-                    .frame(minWidth: 18)
-                
-                Button(action: {
-                    viewModel.stop()
-                }) {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.red)
-                }
-                .buttonStyle(PlainButtonStyle())
-                
-            case .typing(let mode):
-                Text(mode.rawValue)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.green)
-                    .lineLimit(1)
-                
-                Button(action: {
-                    viewModel.stop()
-                }) {
-                    Image(systemName: "stop.fill")
-                        .font(.system(size: 11))
-                        .foregroundColor(.red)
-                }
-                .buttonStyle(PlainButtonStyle())
             }
         }
         .padding(.horizontal, 12)

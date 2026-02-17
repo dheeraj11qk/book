@@ -34,6 +34,12 @@ class ClipboardMonitor: ObservableObject {
         timer = nil
     }
     
+    /// Clears the current clipboard text
+    func clearClipboard() {
+        currentText = nil
+        NSPasteboard.general.clearContents()
+    }
+    
     /// Checks the clipboard for changes and publishes text content
     private func checkClipboard() {
         let pasteboard = NSPasteboard.general
