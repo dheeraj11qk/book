@@ -16,6 +16,7 @@ struct ChatView: View {
     @State private var inputText: String = ""
     @State private var showingSettings = false
     @State private var randomGreeting: String = ""
+    @State private var hasScrolledToStreamStart = false
     
     private var shareBackground: Color {
         #if canImport(UIKit)
@@ -157,19 +158,23 @@ struct ChatView: View {
                         }
                         .privacySensitive(shouldHideFromCapture)
                         .onChange(of: viewModel.messages.count) {
-                            // Auto-scroll when new message is added
-                            if let lastMessage = viewModel.messages.last {
+                            // Auto-scroll only when user sends message (not when AI response completes)
+                            // Check if the last message is from user
+                            if let lastMessage = viewModel.messages.last, lastMessage.isUser {
                                 withAnimation(.easeOut(duration: 0.3)) {
                                     proxy.scrollTo(lastMessage.id, anchor: .bottom)
                                 }
                             }
+                            // Reset flag when new message arrives
+                            hasScrolledToStreamStart = false
                         }
                         .onChange(of: viewModel.currentStreamingMessage) {
-                            // Auto-scroll during streaming
-                            if viewModel.isLoading && !viewModel.currentStreamingMessage.isEmpty {
+                            // Auto-scroll ONCE when streaming starts (first chunk arrives)
+                            if viewModel.isLoading && !viewModel.currentStreamingMessage.isEmpty && !hasScrolledToStreamStart {
                                 withAnimation(.easeOut(duration: 0.2)) {
                                     proxy.scrollTo("streaming", anchor: .bottom)
                                 }
+                                hasScrolledToStreamStart = true
                             }
                         }
                     }
