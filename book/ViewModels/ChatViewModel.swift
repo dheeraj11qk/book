@@ -19,7 +19,7 @@ class ChatViewModel: ObservableObject {
     private let ragService = InMemoryRAGService()
     private var streamingTask: Task<Void, Never>?
     
-    func sendMessage(_ text: String, model: AIModel = .gpt4Turbo) {
+    func sendMessage(_ text: String, model: AIModel = .gpt4oMini) {
         let userMessage = Message(text: text, isUser: true)
         messages.append(userMessage)
         
