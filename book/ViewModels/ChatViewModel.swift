@@ -86,9 +86,10 @@ class ChatViewModel: ObservableObject {
                 
                 // Build user prompt - direct image analysis request
                 let imageAnalysisPrompt: String
+                let imageCount = images.count
                 if text.isEmpty || text == "Analyze this image" {
                     imageAnalysisPrompt = """
-                    Look at the image provided and analyze it carefully.
+                    Look at the \(imageCount > 1 ? "\(imageCount) images" : "image") provided and analyze carefully.
                     
                     Find any:
                     - Coding problems, errors, or bugs
@@ -96,6 +97,8 @@ class ChatViewModel: ObservableObject {
                     - Technical questions or interview questions
                     - SQL queries or database problems
                     - Any other programming or technical questions
+                    
+                    \(imageCount > 1 ? "If the images are related, analyze them together. If they show different problems, address each one." : "")
                     
                     Then provide your answer in this EXACT format:
                     
@@ -112,9 +115,11 @@ class ChatViewModel: ObservableObject {
                     """
                 } else {
                     imageAnalysisPrompt = """
-                    Look at the image provided and answer this question: \(text)
+                    Look at the \(imageCount > 1 ? "\(imageCount) images" : "image") provided and answer this question: \(text)
                     
-                    Analyze the image content and provide your answer in this EXACT format:
+                    \(imageCount > 1 ? "Analyze all images together to provide a complete answer." : "")
+                    
+                    Provide your answer in this EXACT format:
                     
                     Short Answer:
                     [1-2 sentences summarizing the answer]
@@ -139,13 +144,11 @@ class ChatViewModel: ObservableObject {
                     return
                 }
                 
-                print("🖼️ Sending image analysis request with model: gpt-4o-mini")
+                print("🖼️ Sending image analysis request with \(imageCount) image(s) using model: gpt-4o-mini")
                 
-                // Use GPT-4o Mini for vision tasks
-                if let firstImage = images.first {
-                    try await apiService.sendMessageWithImageAndSystem(systemPrompt: systemPrompt, userPrompt: imageAnalysisPrompt, image: firstImage, model: .gpt4oMini) { [weak self] chunk in
-                        self?.currentStreamingMessage = chunk
-                    }
+                // Use GPT-4o Mini for vision tasks with multiple images support
+                try await apiService.sendMessageWithImagesAndSystem(systemPrompt: systemPrompt, userPrompt: imageAnalysisPrompt, images: images, model: .gpt4oMini) { [weak self] chunk in
+                    self?.currentStreamingMessage = chunk
                 }
                 
                 // Add final message - capture the text first, then clear streaming

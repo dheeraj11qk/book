@@ -172,6 +172,82 @@ class OpenAIService {
     
     // MARK: - Vision (Image + Text)
     
+    func sendMessageWithImagesAndSystem(systemPrompt: String, userPrompt: String, images: [NSImage], model: AIModel, onChunk: @escaping (String) -> Void) async throws {
+        let url = URL(string: "\(baseURL)/chat/completions")!
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        
+        // Build message content with text and multiple images
+        var messageContent: [[String: Any]] = [
+            ["type": "text", "text": userPrompt]
+        ]
+        
+        // Add all images
+        for image in images {
+            guard let tiffData = image.tiffRepresentation,
+                  let bitmap = NSBitmapImageRep(data: tiffData),
+                  let pngData = bitmap.representation(using: .png, properties: [:]) else {
+                continue // Skip invalid images
+            }
+            
+            let base64Image = pngData.base64EncodedString()
+            messageContent.append([
+                "type": "image_url",
+                "image_url": ["url": "data:image/png;base64,\(base64Image)"]
+            ])
+        }
+        
+        let requestBody: [String: Any] = [
+            "model": model.rawValue,
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": messageContent]
+            ],
+            "stream": true,
+            "max_tokens": 2000
+        ]
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw APIError.serverError
+        }
+        
+        var buffer = ""
+        
+        for try await line in bytes.lines {
+            if Task.isCancelled {
+                break
+            }
+            
+            if line.hasPrefix("data: ") {
+                let data = line.dropFirst(6)
+                
+                if data == "[DONE]" {
+                    break
+                }
+                
+                if let jsonData = data.data(using: .utf8),
+                   let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                   let choices = json["choices"] as? [[String: Any]],
+                   let firstChoice = choices.first,
+                   let delta = firstChoice["delta"] as? [String: Any],
+                   let content = delta["content"] as? String {
+                    buffer += content
+                    await MainActor.run {
+                        onChunk(buffer)
+                    }
+                }
+            }
+        }
+    }
+    
     func sendMessageWithImageAndSystem(systemPrompt: String, userPrompt: String, image: NSImage, model: AIModel, onChunk: @escaping (String) -> Void) async throws {
         let url = URL(string: "\(baseURL)/chat/completions")!
         
