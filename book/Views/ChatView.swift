@@ -12,6 +12,7 @@ struct ChatView: View {
     @StateObject private var speechRecognizer = SpeechRecognizer()
     @StateObject private var screenshotService = ScreenshotService()
     @StateObject private var captureObserver = ScreenCaptureObserver()
+    @StateObject private var autoTyperViewModel = AutoTyperViewModel()
     @State private var inputText: String = ""
     @State private var showingSettings = false
     @State private var randomGreeting: String = ""
@@ -74,7 +75,7 @@ struct ChatView: View {
             } else {
                 // Normal chat interface - user always sees this
                 VStack(spacing: 0) {
-                    // Top bar with settings and reset button
+                    // Top bar with settings, auto-type overlay, and reset button
                     HStack {
                         // Settings button
                         Button(action: {
@@ -86,6 +87,14 @@ struct ChatView: View {
                                 .padding(8)
                         }
                         .buttonStyle(.plain)
+                        
+                        Spacer()
+                        
+                        // Auto Type Overlay - centered between settings and reset
+                        if let clipboardText = autoTyperViewModel.clipboardText, !clipboardText.isEmpty {
+                            AutoTypeOverlay(viewModel: autoTyperViewModel)
+                                .transition(.scale.combined(with: .opacity))
+                        }
                         
                         Spacer()
                         
@@ -212,6 +221,9 @@ struct ChatView: View {
             // Set random greeting when app opens
             randomGreeting = greetings.randomElement() ?? "Hey there"
             
+            // Start auto-typer monitoring
+            autoTyperViewModel.startMonitoring()
+            
             speechRecognizer.requestAuthorization()
             speechRecognizer.onTranscriptUpdate = { transcript in
                 inputText = transcript
@@ -235,6 +247,10 @@ struct ChatView: View {
             #if canImport(AppKit)
             captureObserver.updateWindowSharingType(isHidden: shouldHideFromCapture)
             #endif
+        }
+        .onDisappear {
+            // Stop auto-typer monitoring when view disappears
+            autoTyperViewModel.stopMonitoring()
         }
     }
     

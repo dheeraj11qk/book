@@ -6,5 +6,7 @@
 	<string>This app needs microphone access to transcribe your speech to text.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>This app uses speech recognition to convert your voice to text.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>This app needs accessibility permissions to simulate keyboard typing for the auto-type feature.</string>
 </dict>
 </plist>
