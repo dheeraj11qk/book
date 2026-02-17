@@ -135,22 +135,26 @@ struct FormattedMarkdownText: View {
             // H1
             Text(trimmed.dropFirst(2))
                 .font(.system(size: 24, weight: .bold))
+                .foregroundColor(.white)
                 .textSelection(.enabled)
         } else if trimmed.hasPrefix("## ") {
             // H2
             Text(trimmed.dropFirst(3))
                 .font(.system(size: 20, weight: .bold))
+                .foregroundColor(.white)
                 .textSelection(.enabled)
         } else if trimmed.hasPrefix("### ") {
             // H3
             Text(trimmed.dropFirst(4))
                 .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.white)
                 .textSelection(.enabled)
         } else if let match = trimmed.range(of: #"^\d+\.\s+"#, options: .regularExpression) {
             // Numbered list
             HStack(alignment: .top, spacing: 8) {
                 Text(String(trimmed[match]))
                     .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
                     .textSelection(.enabled)
                 Text(formatInlineStyles(String(trimmed[match.upperBound...])))
                     .font(.system(size: 16))
@@ -241,47 +245,6 @@ struct FormattedMarkdownText: View {
         return attributed
     }
     
-//    private func formatInlineStyles(_ text: String) -> AttributedString {
-//        var attributed = AttributedString(text)
-//        
-//        attributed.foregroundColor = .white
-//        
-//        // Bold **text**
-//        if let boldRegex = try? NSRegularExpression(pattern: "\\*\\*(.+?)\\*\\*", options: []) {
-//            let nsString = text as NSString
-//            let matches = boldRegex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
-//            for match in matches.reversed() {
-//                if let range = Range(match.range(at: 1), in: text) {
-//                    let boldText = String(text[range])
-//                    if let attrRange = attributed.range(of: "**\(boldText)**") {
-//                        attributed.replaceSubrange(attrRange, with: AttributedString(boldText))
-//                        if let newRange = attributed.range(of: boldText) {
-//                            attributed[newRange].font = .system(size: 16, weight: .bold)
-//                          
-//                    }
-//                }
-//            }
-//        }
-//        
-//        // Italic *text*
-//        if let italicRegex = try? NSRegularExpression(pattern: "(?<!\\*)\\*(?!\\*)(.+?)(?<!\\*)\\*(?!\\*)", options: []) {
-//            let nsString = text as NSString
-//            let matches = italicRegex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
-//            for match in matches.reversed() {
-//                if let range = Range(match.range(at: 1), in: text) {
-//                    let italicText = String(text[range])
-//                    if let attrRange = attributed.range(of: "*\(italicText)*") {
-//                        attributed.replaceSubrange(attrRange, with: AttributedString(italicText))
-//                        if let newRange = attributed.range(of: italicText) {
-//                            attributed[newRange].font = .system(size: 16).italic()
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//        
-//        return attributed
-//    }
 }
 
 struct TextPart {
