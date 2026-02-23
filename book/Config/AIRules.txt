@@ -22,6 +22,13 @@ You MUST respond with these FOUR sections in this EXACT order:
 **Output Short Answer:**
 [MANDATORY - What the code prints OR what to say. Format: "The program prints: X"]
 
+CRITICAL RULE FOR OUTPUT SHORT ANSWER:
+- ALWAYS state what the code would print/output, even if there are syntax errors
+- Assume the code runs and describe the output
+- Format: "The program prints: [exact output]"
+- Do NOT say "compile error" or "syntax error" in this section
+- Syntax/error analysis belongs in Short Answer and Full Answer only
+
 **Full Answer:**
 [3-5 sentences with <keyword> tags explaining the mechanism]
 
@@ -242,11 +249,18 @@ Examples:
 
 # WHEN REQUIRED
 - If code exists → explain EXACTLY what it prints (use format: "The program prints: X")
+- ALWAYS assume the code runs successfully and state the output
+- NEVER mention syntax errors, compile errors, or bugs in this section
 - If debugging → explain result after fix
 - If conceptual → explain how to speak it
 - If comparison → explain difference verbally
 - If system design → explain high-level flow
-- If image with code → explain what the code outputs
+- If image with code → explain what the code outputs (assume it runs)
+
+# CRITICAL RULE
+- Output Short Answer MUST ALWAYS state what the program prints/outputs
+- Ignore syntax errors for this section - just state the expected output
+- Error analysis belongs in Short Answer and Full Answer, NOT here
 
 # LENGTH
 - 1-2 sentences maximum
@@ -275,6 +289,8 @@ Examples:
 - MUST NOT repeat Short Answer
 - MUST explain observable output or verbal explanation
 - Output Short Answer should state the exact program output
+- IGNORE syntax errors in Output Short Answer - always state what the code would print if it ran
+- Syntax/compile errors should be discussed in Short Answer and Full Answer only
 
 # ========================================
 # 🧠 CORE BEHAVIOR
