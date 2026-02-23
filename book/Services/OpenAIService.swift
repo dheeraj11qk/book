@@ -18,7 +18,7 @@ enum AIModel: String {
 class OpenAIService {
     private var apiKey: String {
         let userDefaultsKey = UserDefaults.standard.openAIAPIKey
-        return !userDefaultsKey.isEmpty ? userDefaultsKey : APIKeys.groqAPIKey
+        return  userDefaultsKey 
     }
     
     private let baseURL = "https://api.openai.com/v1"

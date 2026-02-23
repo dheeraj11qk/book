@@ -11,7 +11,7 @@ class GroqAPIService {
     private var apiKey: String {
         // Use OpenAI API key from UserDefaults (shared preference)
         let userDefaultsKey = UserDefaults.standard.openAIAPIKey
-        return !userDefaultsKey.isEmpty ? userDefaultsKey : APIKeys.groqAPIKey
+        return userDefaultsKey 
     }
     private let baseURL = "https://api.groq.com/openai/v1/chat/completions"
     
