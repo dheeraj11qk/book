@@ -100,16 +100,13 @@ class ChatViewModel: ObservableObject {
                     
                     \(imageCount > 1 ? "If the images are related, analyze them together. If they show different problems, address each one." : "")
                     
-                    Then provide your answer in this EXACT format:
+                    Then provide your answer following the MANDATORY FOUR-SECTION FORMAT from the system rules.
                     
-                    Short Answer:
-                    [1-2 sentences summarizing the problem and solution]
-                    
-                    Full Answer:
-                    [3-5 sentences with detailed explanation using <keyword> tags for important terms]
-                    
-                    Code:
-                    [Complete, working code example that solves the problem]
+                    CRITICAL: You MUST include ALL FOUR sections:
+                    1. **Short Answer:**
+                    2. **Output Short Answer:** (MANDATORY - what the code prints or what to say)
+                    3. **Full Answer:**
+                    4. **Code:**
                     
                     IMPORTANT: You MUST analyze the actual image content and provide a real solution.
                     """
@@ -119,16 +116,13 @@ class ChatViewModel: ObservableObject {
                     
                     \(imageCount > 1 ? "Analyze all images together to provide a complete answer." : "")
                     
-                    Provide your answer in this EXACT format:
+                    Provide your answer following the MANDATORY FOUR-SECTION FORMAT from the system rules.
                     
-                    Short Answer:
-                    [1-2 sentences summarizing the answer]
-                    
-                    Full Answer:
-                    [3-5 sentences with detailed explanation using <keyword> tags for important terms]
-                    
-                    Code:
-                    [Complete, working code example if applicable]
+                    CRITICAL: You MUST include ALL FOUR sections:
+                    1. **Short Answer:**
+                    2. **Output Short Answer:** (MANDATORY - what the code prints or what to say)
+                    3. **Full Answer:**
+                    4. **Code:**
                     
                     IMPORTANT: You MUST analyze the actual image content and provide a real solution.
                     """

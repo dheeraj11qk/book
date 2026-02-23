@@ -262,13 +262,12 @@ class InMemoryRAGService: ObservableObject {
         systemPrompt += "- Be conversational and natural\n"
         systemPrompt += "- Answer as if you naturally remember things from earlier in the conversation\n"
         
-        // Add custom rules if any
+        // Add custom rules if any - PASS THROUGH EXACTLY AS WRITTEN
         if !customRules.isEmpty {
             systemPrompt += "\n"
-            systemPrompt += "ADDITIONAL CUSTOM RULES:\n"
-            for rule in customRules {
-                systemPrompt += "- \(rule)\n"
-            }
+            systemPrompt += "=== CUSTOM AI RULES (FOLLOW EXACTLY) ===\n"
+            systemPrompt += customRules.joined(separator: "\n")
+            systemPrompt += "\n=== END CUSTOM RULES ===\n"
         }
         
         return systemPrompt

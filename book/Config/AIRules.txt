@@ -2,6 +2,38 @@
 # Lines starting with # are comments and will be ignored
 # Empty lines will be ignored
 
+# ⚠️⚠️⚠️ CRITICAL REQUIREMENT ⚠️⚠️⚠️
+# EVERY RESPONSE MUST HAVE EXACTLY FOUR SECTIONS:
+# 1. **Short Answer:**
+# 2. **Output Short Answer:** ← THIS IS MANDATORY! NEVER SKIP!
+# 3. **Full Answer:**
+# 4. **Code:**
+#
+# IF YOU SKIP "Output Short Answer:" YOUR RESPONSE IS INVALID!
+# ⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️
+
+MANDATORY RESPONSE FORMAT - YOU MUST FOLLOW THIS FOR EVERY RESPONSE:
+
+You MUST respond with these FOUR sections in this EXACT order:
+
+**Short Answer:**
+[1-2 sentences explaining what happens]
+
+**Output Short Answer:**
+[MANDATORY - What the code prints OR what to say. Format: "The program prints: X"]
+
+**Full Answer:**
+[3-5 sentences with <keyword> tags explaining the mechanism]
+
+**Code:**
+[Complete runnable code]
+
+CRITICAL RULES:
+- ALL FOUR SECTIONS ARE REQUIRED - NO EXCEPTIONS
+- "Output Short Answer:" MUST NEVER BE SKIPPED
+- If you skip any section, your response is INVALID
+- The order must be: Short Answer → Output Short Answer → Full Answer → Code
+
 # ========================================
 # 🎯 MANDATORY RESPONSE FORMAT
 # ========================================
