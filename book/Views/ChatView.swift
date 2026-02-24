@@ -133,7 +133,8 @@ struct ChatView: View {
                         BrowserView(
                             isPresented: $showingBrowser,
                             viewModel: browserViewModel,
-                            webViewStore: webViewStore
+                            webViewStore: webViewStore,
+                            speechRecognizer: speechRecognizer
                         )
                     } else {
                         // Chat messages area
@@ -220,6 +221,8 @@ struct ChatView: View {
                             if speechRecognizer.isRecording {
                                 speechRecognizer.stopRecording()
                             } else {
+                                // Duck audio before starting recording
+                                webViewStore.duckAudio()
                                 speechRecognizer.startRecording()
                             }
                         },
@@ -271,7 +274,8 @@ struct ChatView: View {
                 }
             }
             speechRecognizer.onRecordingStop = {
-                // When mic stops, wait for AI correction before sending
+                // When mic stops, restore audio and wait for AI correction
+                webViewStore.restoreAudio()
                 // The corrected text will be handled by onCorrectedTranscript
             }
             

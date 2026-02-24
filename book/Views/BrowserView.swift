@@ -12,6 +12,8 @@ struct BrowserView: View {
     @Binding var isPresented: Bool
     @ObservedObject var viewModel: BrowserViewModel
     @ObservedObject var webViewStore: WebViewStore
+    @ObservedObject var speechRecognizer: SpeechRecognizer
+    @State private var chatMessage: String = ""
     
     var body: some View {
         VStack(spacing: 0) {
@@ -74,6 +76,22 @@ struct BrowserView: View {
                 }
                 .buttonStyle(.plain)
                 
+                // Clear data button (for login issues)
+                Button(action: {
+                    webViewStore.clearAllData()
+                    // Reload current page after clearing data
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        webViewStore.reload()
+                    }
+                }) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 14))
+                        .foregroundColor(.white)
+                        .padding(8)
+                }
+                .buttonStyle(.plain)
+                .help("Clear all data (cookies, login sessions)")
+                
                 // Close button
                 Button(action: {
                     isPresented = false
@@ -109,18 +127,191 @@ struct BrowserView: View {
                 isLoading: $viewModel.isLoading,
                 canGoBack: $viewModel.canGoBack,
                 canGoForward: $viewModel.canGoForward,
-                webViewStore: webViewStore
+                webViewStore: webViewStore,
+                onChatGPTReady: {
+                    print("🎉 ChatGPT is ready for native input!")
+                }
             )
             .background(Color.white)
+            
+            // Native ChatGPT Input (only show when ChatGPT is ready)
+            if webViewStore.isChatGPTReady {
+                VStack(spacing: 0) {
+                    // Status indicator
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.system(size: 12))
+                        Text("Native ChatGPT Control Active")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    
+                    // Subtle divider
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.15))
+                        .frame(height: 1)
+                        .padding(.top, 8)
+                    
+                    // Native input area matching ChatGPT's design
+                    HStack(spacing: 12) {
+                        // Microphone button
+                        Button(action: {
+                            if speechRecognizer.isRecording {
+                                // Stop recording and send immediately
+                                let currentText = chatMessage.trimmingCharacters(in: .whitespaces)
+                                speechRecognizer.stopRecording()
+                                
+                                // Send immediately without waiting for AI correction
+                                if !currentText.isEmpty {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                        sendMessageToChatGPT()
+                                    }
+                                }
+                            } else {
+                                // Clear any previous text and start recording
+                                chatMessage = ""
+                                webViewStore.duckAudio()
+                                speechRecognizer.startRecording()
+                            }
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .fill(speechRecognizer.isRecording ? Color.red : Color.gray.opacity(0.2))
+                                    .frame(width: 36, height: 36)
+                                
+                                if speechRecognizer.isProcessing {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .scaleEffect(0.7)
+                                } else {
+                                    Image(systemName: speechRecognizer.isRecording ? "mic.fill" : "mic")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(speechRecognizer.isRecording ? .white : .primary)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .help(speechRecognizer.isRecording ? "Stop and send" : "Start voice input")
+                        
+                        // Stop button (only show when recording or processing)
+                        if speechRecognizer.isRecording || speechRecognizer.isProcessing {
+                            Button(action: {
+                                // Cancel recording without sending
+                                speechRecognizer.stopRecording()
+                                chatMessage = ""
+                                webViewStore.restoreAudio()
+                            }) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.2))
+                                        .frame(width: 36, height: 36)
+                                    
+                                    Image(systemName: "xmark")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(.primary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .help("Cancel recording")
+                            .transition(.scale.combined(with: .opacity))
+                        }
+                        
+                        // Input field container (matching ChatGPT's style)
+                        HStack(spacing: 8) {
+                            // Text input
+                            TextField("Message ChatGPT", text: $chatMessage, axis: .vertical)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 16))
+                                .foregroundColor(.primary)
+                                .lineLimit(1...6)
+                                .padding(.vertical, 12)
+                                .padding(.leading, 16)
+                                .onSubmit {
+                                    sendMessageToChatGPT()
+                                }
+                                .disabled(speechRecognizer.isRecording || speechRecognizer.isProcessing)
+                            
+                            // Send button (only show when there's text and not recording)
+                            if !chatMessage.trimmingCharacters(in: .whitespaces).isEmpty && !speechRecognizer.isRecording && !speechRecognizer.isProcessing {
+                                Button(action: {
+                                    sendMessageToChatGPT()
+                                }) {
+                                    Image(systemName: "arrow.up")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .frame(width: 28, height: 28)
+                                        .background(
+                                            Circle()
+                                                .fill(Color.black)
+                                        )
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.trailing, 8)
+                            }
+                        }
+                        .background(
+                            RoundedRectangle(cornerRadius: 24)
+                                .fill(Color(NSColor.controlBackgroundColor))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 24)
+                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
+                    .background(Color(NSColor.windowBackgroundColor))
+                    .animation(.easeInOut(duration: 0.2), value: speechRecognizer.isRecording)
+                    .animation(.easeInOut(duration: 0.2), value: speechRecognizer.isProcessing)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .animation(.easeInOut(duration: 0.3), value: webViewStore.isChatGPTReady)
+            }
         }
         .onAppear {
             // Connect WebViewStore to ViewModel
             viewModel.webViewStore = webViewStore
             
-            // Only set the default URL text, don't auto-load
+            // Auto-load ChatGPT
             if viewModel.urlText.isEmpty {
                 viewModel.urlText = "chatgpt.com"
+                viewModel.loadURL(viewModel.urlText)
+            }
+            
+            // Setup speech recognizer callbacks
+            speechRecognizer.onTranscriptUpdate = { transcript in
+                chatMessage = transcript
+            }
+            
+            // Don't use onCorrectedTranscript for auto-send in browser
+            // User will manually click mic button to stop and send
+            speechRecognizer.onCorrectedTranscript = nil
+            
+            speechRecognizer.onRecordingStop = {
+                // When mic stops, restore audio
+                webViewStore.restoreAudio()
             }
         }
+        .onDisappear {
+            // Clean up callbacks when leaving browser
+            speechRecognizer.onTranscriptUpdate = nil
+            speechRecognizer.onCorrectedTranscript = nil
+            speechRecognizer.onRecordingStop = nil
+        }
+    }
+    
+    private func sendMessageToChatGPT() {
+        let message = chatMessage.trimmingCharacters(in: .whitespaces)
+        guard !message.isEmpty else { return }
+        
+        print("📤 Sending message directly to ChatGPT: \(message)")
+        webViewStore.sendMessageToChatGPT(message)
+        
+        // Clear input immediately
+        chatMessage = ""
     }
 }

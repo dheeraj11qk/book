@@ -15,22 +15,428 @@ struct WebViewWrapper: NSViewRepresentable {
     @Binding var canGoForward: Bool
     
     var webViewStore: WebViewStore?
+    var onChatGPTReady: (() -> Void)?
     
     init(url: Binding<URL?>, 
          isLoading: Binding<Bool>, 
          canGoBack: Binding<Bool>, 
          canGoForward: Binding<Bool>,
-         webViewStore: WebViewStore? = nil) {
+         webViewStore: WebViewStore? = nil,
+         onChatGPTReady: (() -> Void)? = nil) {
         self._url = url
         self._isLoading = isLoading
         self._canGoBack = canGoBack
         self._canGoForward = canGoForward
         self.webViewStore = webViewStore
+        self.onChatGPTReady = onChatGPTReady
     }
     
     func makeNSView(context: Context) -> WKWebView {
-        let webView = WKWebView()
+        let config = WKWebViewConfiguration()
+        
+        // Enable persistent data store for login sessions (like Chrome)
+        let dataStore = WKWebsiteDataStore.default()
+        config.websiteDataStore = dataStore
+        
+        // Enable JavaScript and other web features
+        if #available(macOS 11.0, *) {
+            // Use modern API for JavaScript control
+            config.defaultWebpagePreferences.allowsContentJavaScript = true
+        } else {
+            #if compiler(>=5.5)
+            // Fallback for older macOS versions
+            #endif
+        }
+        config.preferences.javaScriptCanOpenWindowsAutomatically = true
+        
+        // Enable modern web features
+        if #available(macOS 11.0, *) {
+            config.preferences.isTextInteractionEnabled = true
+        }
+        
+        // Enable media playback features (macOS specific)
+        config.mediaTypesRequiringUserActionForPlayback = []
+        
+        // Set user agent to mimic a real browser (helps with OAuth)
+        config.applicationNameForUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+        
+        let contentController = WKUserContentController()
+        
+        // Add message handler for JavaScript communication
+        contentController.add(context.coordinator, name: "chatGPTBridge")
+        
+        // Inject JavaScript to detect ChatGPT elements
+        let chatGPTScript = """
+        console.log('🚀 ChatGPT Bridge Script Loaded');
+        
+        // Multiple selector strategies for ChatGPT input detection
+        function findChatGPTElements() {
+            // Try multiple selectors for the input field
+            const inputSelectors = [
+                'textarea[data-id="root"]',
+                'textarea[placeholder*="Message"]',
+                'textarea[placeholder*="ChatGPT"]',
+                '#prompt-textarea',
+                'textarea[rows="1"]',
+                'div[contenteditable="true"]',
+                'textarea'
+            ];
+            
+            // Try multiple selectors for the send button
+            const sendButtonSelectors = [
+                'button[data-testid="send-button"]',
+                'button[aria-label*="Send"]',
+                'button[type="submit"]',
+                'button svg[data-icon="send"]',
+                'button:has(svg)',
+                '[data-testid="fruitjuice-send-button"]'
+            ];
+            
+            let input = null;
+            let sendButton = null;
+            
+            // Find input field
+            for (const selector of inputSelectors) {
+                try {
+                    const element = document.querySelector(selector);
+                    if (element && (element.offsetWidth > 0 || element.offsetHeight > 0)) {
+                        input = element;
+                        console.log('✅ Found input with selector:', selector);
+                        break;
+                    }
+                } catch (e) {
+                    console.log('❌ Selector failed:', selector, e);
+                }
+            }
+            
+            // Find send button
+            for (const selector of sendButtonSelectors) {
+                try {
+                    const element = document.querySelector(selector);
+                    if (element && (element.offsetWidth > 0 || element.offsetHeight > 0)) {
+                        sendButton = element;
+                        console.log('✅ Found send button with selector:', selector);
+                        break;
+                    }
+                } catch (e) {
+                    console.log('❌ Send button selector failed:', selector, e);
+                }
+            }
+            
+            return { input, sendButton };
+        }
+        
+        // Wait for ChatGPT to load
+        function waitForChatGPT() {
+            const elements = findChatGPTElements();
+            
+            if (elements.input) {
+                console.log('🎉 ChatGPT elements found!');
+                window.webkit.messageHandlers.chatGPTBridge.postMessage({
+                    type: 'ready',
+                    message: 'ChatGPT interface is ready',
+                    inputFound: !!elements.input,
+                    sendButtonFound: !!elements.sendButton
+                });
+                return true;
+            }
+            return false;
+        }
+        
+        // Function to inspect ChatGPT DOM elements
+        function inspectChatGPTDOM() {
+            console.log('� Inspecting ChatGPT DOM...');
+            
+            const report = {
+                textareas: [],
+                buttons: [],
+                inputs: [],
+                elementsWithIds: [],
+                elementsWithDataTestId: []
+            };
+            
+            // Find all textareas
+            const textareas = document.querySelectorAll('textarea');
+            textareas.forEach((textarea, index) => {
+                report.textareas.push({
+                    index: index,
+                    id: textarea.id || 'no-id',
+                    className: textarea.className || 'no-class',
+                    placeholder: textarea.placeholder || 'no-placeholder',
+                    name: textarea.name || 'no-name',
+                    visible: textarea.offsetParent !== null,
+                    tagName: textarea.tagName
+                });
+            });
+            
+            // Find all buttons
+            const buttons = document.querySelectorAll('button');
+            buttons.forEach((button, index) => {
+                if (index < 20) { // Limit to first 20 buttons
+                    report.buttons.push({
+                        index: index,
+                        id: button.id || 'no-id',
+                        className: button.className || 'no-class',
+                        ariaLabel: button.getAttribute('aria-label') || 'no-aria-label',
+                        textContent: (button.textContent || '').trim().substring(0, 50),
+                        visible: button.offsetParent !== null,
+                        dataTestId: button.getAttribute('data-testid') || 'no-data-testid'
+                    });
+                }
+            });
+            
+            // Find all input elements
+            const inputs = document.querySelectorAll('input');
+            inputs.forEach((input, index) => {
+                report.inputs.push({
+                    index: index,
+                    id: input.id || 'no-id',
+                    type: input.type || 'no-type',
+                    className: input.className || 'no-class',
+                    placeholder: input.placeholder || 'no-placeholder',
+                    visible: input.offsetParent !== null
+                });
+            });
+            
+            // Find elements with IDs
+            const elementsWithIds = document.querySelectorAll('[id]');
+            elementsWithIds.forEach((element, index) => {
+                if (index < 30) { // Limit to first 30
+                    report.elementsWithIds.push({
+                        id: element.id,
+                        tagName: element.tagName,
+                        className: element.className || 'no-class',
+                        visible: element.offsetParent !== null
+                    });
+                }
+            });
+            
+            // Find elements with data-testid
+            const elementsWithDataTestId = document.querySelectorAll('[data-testid]');
+            elementsWithDataTestId.forEach((element, index) => {
+                if (index < 20) { // Limit to first 20
+                    report.elementsWithDataTestId.push({
+                        dataTestId: element.getAttribute('data-testid'),
+                        tagName: element.tagName,
+                        id: element.id || 'no-id',
+                        className: element.className || 'no-class',
+                        visible: element.offsetParent !== null
+                    });
+                }
+            });
+            
+            console.log('📊 DOM Inspection Report:', report);
+            return report;
+        }
+        
+        // Function to send message to ChatGPT - KEYBOARD SIMULATION APPROACH
+        function sendToChatGPT(message) {
+            console.log('📤 Attempting to send message:', message);
+            
+            // Find the ProseMirror editor
+            const proseMirrorEditor = document.getElementById('prompt-textarea');
+            
+            if (proseMirrorEditor) {
+                console.log('✅ Found ProseMirror editor');
+                
+                try {
+                    // Clear any existing content first
+                    proseMirrorEditor.innerHTML = '<p><br></p>';
+                    
+                    // Focus the editor
+                    proseMirrorEditor.focus();
+                    
+                    // Simulate typing each character
+                    let currentText = '';
+                    for (let i = 0; i < message.length; i++) {
+                        currentText += message[i];
+                        
+                        // Set the content
+                        proseMirrorEditor.innerHTML = '<p>' + currentText + '</p>';
+                        
+                        // Trigger input event for each character
+                        proseMirrorEditor.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    
+                    console.log('✅ Text typed into ProseMirror editor');
+                    
+                    // Wait a moment, then simulate Enter key press
+                    setTimeout(() => {
+                        const enterEvent = new KeyboardEvent('keydown', {
+                            key: 'Enter',
+                            code: 'Enter',
+                            keyCode: 13,
+                            which: 13,
+                            bubbles: true,
+                            cancelable: true
+                        });
+                        
+                        proseMirrorEditor.dispatchEvent(enterEvent);
+                        console.log('✅ Enter key pressed');
+                        
+                        // Also try keyup event
+                        const enterUpEvent = new KeyboardEvent('keyup', {
+                            key: 'Enter',
+                            code: 'Enter',
+                            keyCode: 13,
+                            which: 13,
+                            bubbles: true
+                        });
+                        
+                        proseMirrorEditor.dispatchEvent(enterUpEvent);
+                        
+                        // Clear after sending
+                        setTimeout(() => {
+                            proseMirrorEditor.innerHTML = '<p><br></p>';
+                        }, 500);
+                        
+                    }, 200);
+                    
+                    return true;
+                    
+                } catch (error) {
+                    console.error('❌ Error with keyboard simulation:', error);
+                    return false;
+                }
+            }
+            
+            // Fallback: Try to find and click any submit-like button
+            const submitButtons = [
+                document.querySelector('button[type="submit"]'),
+                document.querySelector('[data-testid*="submit"]'),
+                document.querySelector('[aria-label*="Send"]'),
+                document.querySelector('button[aria-label*="submit"]'),
+                ...Array.from(document.querySelectorAll('button')).filter(btn => 
+                    btn.textContent.toLowerCase().includes('send') || 
+                    btn.textContent.toLowerCase().includes('submit')
+                )
+            ].filter(btn => btn && btn.offsetParent !== null);
+            
+            if (submitButtons.length > 0) {
+                console.log('🎯 Trying direct button click approach');
+                
+                // Try the hidden textarea first
+                const hiddenTextarea = document.querySelector('textarea[name="prompt-textarea"]');
+                if (hiddenTextarea) {
+                    hiddenTextarea.value = message;
+                    hiddenTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                
+                // Click the submit button
+                submitButtons[0].click();
+                console.log('✅ Submit button clicked');
+                return true;
+            }
+            
+            console.error('❌ Could not find suitable method for sending');
+            return false;
+        }
+        
+        // Function to get ChatGPT response
+        function getChatGPTResponse() {
+            const messageSelectors = [
+                '[data-message-author-role="assistant"]',
+                '.markdown',
+                '[data-testid="conversation-turn-3"]',
+                '.prose'
+            ];
+            
+            for (const selector of messageSelectors) {
+                try {
+                    const messages = document.querySelectorAll(selector);
+                    if (messages.length > 0) {
+                        const lastMessage = messages[messages.length - 1];
+                        return lastMessage.textContent || lastMessage.innerText || '';
+                    }
+                } catch (e) {
+                    console.log('Response selector failed:', selector);
+                }
+            }
+            return '';
+        }
+        
+        // Monitor for DOM changes to detect when ChatGPT loads
+        const observer = new MutationObserver((mutations) => {
+            if (!window.chatGPTReady) {
+                waitForChatGPT();
+            }
+        });
+        
+        // Start observing
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+        
+        // Check immediately and then periodically
+        setTimeout(() => {
+            if (waitForChatGPT()) {
+                window.chatGPTReady = true;
+            }
+        }, 1000);
+        
+        const checkInterval = setInterval(() => {
+            if (!window.chatGPTReady && waitForChatGPT()) {
+                window.chatGPTReady = true;
+                clearInterval(checkInterval);
+            }
+        }, 2000);
+        
+        // Expose functions globally
+        window.sendToChatGPT = sendToChatGPT;
+        window.getChatGPTResponse = getChatGPTResponse;
+        window.findChatGPTElements = findChatGPTElements;
+        window.inspectChatGPTDOM = inspectChatGPTDOM;
+        
+        // Audio ducking functions for YouTube
+        window.duckAudio = function(volume = 0.1) {
+            // Find YouTube video elements
+            const videos = document.querySelectorAll('video');
+            videos.forEach(video => {
+                if (video.volume !== undefined) {
+                    video.dataset.originalVolume = video.volume;
+                    video.volume = volume;
+                }
+            });
+            
+            // Find YouTube player API
+            if (window.ytplayer && window.ytplayer.setVolume) {
+                window.ytplayer.dataset.originalVolume = window.ytplayer.getVolume();
+                window.ytplayer.setVolume(volume * 100);
+            }
+            
+            console.log('🔇 Audio ducked for speech recognition');
+        };
+        
+        window.restoreAudio = function() {
+            // Restore YouTube video elements
+            const videos = document.querySelectorAll('video');
+            videos.forEach(video => {
+                if (video.dataset.originalVolume !== undefined) {
+                    video.volume = parseFloat(video.dataset.originalVolume);
+                    delete video.dataset.originalVolume;
+                }
+            });
+            
+            // Restore YouTube player API
+            if (window.ytplayer && window.ytplayer.setVolume && window.ytplayer.dataset.originalVolume) {
+                window.ytplayer.setVolume(parseFloat(window.ytplayer.dataset.originalVolume));
+                delete window.ytplayer.dataset.originalVolume;
+            }
+            
+            console.log('🔊 Audio restored after speech recognition');
+        };
+        """
+        
+        let userScript = WKUserScript(source: chatGPTScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        contentController.addUserScript(userScript)
+        
+        config.userContentController = contentController
+        
+        let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator // Add UI delegate for popups
+        
         webViewStore?.webView = webView
         
         // Load initial URL if provided
@@ -59,6 +465,7 @@ struct WebViewWrapper: NSViewRepresentable {
 // Store to hold WKWebView reference
 class WebViewStore: ObservableObject {
     var webView: WKWebView?
+    @Published var isChatGPTReady = false
     
     func goBack() {
         webView?.goBack()
@@ -77,20 +484,242 @@ class WebViewStore: ObservableObject {
         let request = URLRequest(url: url)
         webView?.load(request)
     }
+    
+    func sendMessageToChatGPT(_ message: String) {
+        let escapedMessage = message.replacingOccurrences(of: "'", with: "\\'")
+                                   .replacingOccurrences(of: "\n", with: "\\n")
+                                   .replacingOccurrences(of: "\r", with: "\\r")
+        
+        let script = "sendToChatGPT('\(escapedMessage)');"
+        
+        print("📤 Sending message to ChatGPT: \(message)")
+        webView?.evaluateJavaScript(script) { result, error in
+            if let error = error {
+                print("❌ Error sending message to ChatGPT: \(error)")
+                // If sending fails, inspect the DOM to understand the structure
+                self.inspectDOM()
+            } else if let success = result as? Bool, success {
+                print("✅ Message sent successfully to ChatGPT")
+            } else {
+                print("⚠️ Message send result unclear: \(String(describing: result))")
+                // Inspect DOM to understand what's available
+                self.inspectDOM()
+            }
+        }
+    }
+    
+    func inspectDOM() {
+        let script = "inspectChatGPTDOM();"
+        webView?.evaluateJavaScript(script) { result, error in
+            if let error = error {
+                print("❌ Error inspecting DOM: \(error)")
+            } else if let domReport = result {
+                print("🔍 DOM Inspection Result:")
+                print(domReport)
+            }
+        }
+    }
+    
+    private func debugChatGPTElements() {
+        let debugScript = """
+        const elements = findChatGPTElements();
+        console.log('🔍 Debug - Input found:', !!elements.input);
+        console.log('🔍 Debug - Send button found:', !!elements.sendButton);
+        if (elements.input) {
+            console.log('🔍 Debug - Input tag:', elements.input.tagName);
+            console.log('🔍 Debug - Input type:', elements.input.type);
+        }
+        return {
+            inputFound: !!elements.input,
+            sendButtonFound: !!elements.sendButton,
+            inputTag: elements.input ? elements.input.tagName : null
+        };
+        """
+        
+        webView?.evaluateJavaScript(debugScript) { result, error in
+            if let result = result {
+                print("🔍 ChatGPT Debug Result: \(result)")
+            }
+        }
+    }
+    
+    func getChatGPTResponse(completion: @escaping (String) -> Void) {
+        let script = "getChatGPTResponse();"
+        webView?.evaluateJavaScript(script) { result, error in
+            if let response = result as? String {
+                completion(response)
+            } else {
+                completion("")
+            }
+        }
+    }
+    
+    func clearAllData() {
+        // Clear all website data (cookies, local storage, etc.)
+        let dataStore = WKWebsiteDataStore.default()
+        let dataTypes = WKWebsiteDataStore.allWebsiteDataTypes()
+        
+        dataStore.removeData(ofTypes: dataTypes, modifiedSince: Date(timeIntervalSince1970: 0)) {
+            print("🧹 All website data cleared")
+        }
+    }
+    
+    func checkLoginStatus() {
+        // Check if user is logged in to ChatGPT
+        let script = """
+        // Check for login indicators
+        const loginIndicators = [
+            'button[aria-label*="User"]',
+            '[data-testid="profile-button"]',
+            '.user-avatar',
+            '[aria-label*="Account"]'
+        ];
+        
+        let isLoggedIn = false;
+        for (const selector of loginIndicators) {
+            if (document.querySelector(selector)) {
+                isLoggedIn = true;
+                break;
+            }
+        }
+        
+        return {
+            loggedIn: isLoggedIn,
+            url: window.location.href
+        };
+        """
+        
+        webView?.evaluateJavaScript(script) { result, error in
+            if let result = result as? [String: Any] {
+                let isLoggedIn = result["loggedIn"] as? Bool ?? false
+                let currentURL = result["url"] as? String ?? ""
+                
+                print("🔐 Login Status - Logged in: \(isLoggedIn), URL: \(currentURL)")
+            }
+        }
+    }
+    
+    func duckAudio() {
+        let script = "if (typeof duckAudio === 'function') { duckAudio(0.1); }"
+        webView?.evaluateJavaScript(script) { result, error in
+            if let error = error {
+                print("❌ Error ducking audio: \(error)")
+            } else {
+                print("🔇 Audio ducked successfully")
+            }
+        }
+    }
+    
+    func restoreAudio() {
+        let script = "if (typeof restoreAudio === 'function') { restoreAudio(); }"
+        webView?.evaluateJavaScript(script) { result, error in
+            if let error = error {
+                print("❌ Error restoring audio: \(error)")
+            } else {
+                print("🔊 Audio restored successfully")
+            }
+        }
+    }
 }
 
 extension WebViewWrapper {
-    class Coordinator: NSObject, WKNavigationDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         var parent: WebViewWrapper
         
         init(_ parent: WebViewWrapper) {
             self.parent = parent
         }
         
+        // MARK: - WKUIDelegate (for OAuth popups)
+        
+        func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+            // Handle OAuth popup windows by loading in the same webview
+            if let url = navigationAction.request.url {
+                print("🔗 Opening popup URL in same webview: \(url)")
+                webView.load(navigationAction.request)
+            }
+            return nil
+        }
+        
+        func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+            // Handle JavaScript alerts
+            let alert = NSAlert()
+            alert.messageText = "Website Alert"
+            alert.informativeText = message
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            completionHandler()
+        }
+        
+        func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+            // Handle JavaScript confirms
+            let alert = NSAlert()
+            alert.messageText = "Website Confirmation"
+            alert.informativeText = message
+            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: "Cancel")
+            let response = alert.runModal()
+            completionHandler(response == .alertFirstButtonReturn)
+        }
+        
+        // MARK: - WKScriptMessageHandler
+        
+        // MARK: - WKNavigationDelegate
+        
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            // Allow all navigation for OAuth flows
+            if let url = navigationAction.request.url {
+                print("🔗 Navigation to: \(url)")
+                
+                // Handle special OAuth URLs
+                if url.absoluteString.contains("accounts.google.com") ||
+                   url.absoluteString.contains("oauth") ||
+                   url.absoluteString.contains("auth") ||
+                   url.absoluteString.contains("login") {
+                    print("🔐 OAuth/Login flow detected, allowing navigation")
+                }
+                
+                // Handle ChatGPT OAuth callback
+                if url.absoluteString.contains("chatgpt.com") && 
+                   url.absoluteString.contains("auth") {
+                    print("🎯 ChatGPT OAuth callback detected")
+                }
+            }
+            decisionHandler(.allow)
+        }
+        
+        func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+            // Allow all responses
+            decisionHandler(.allow)
+        }
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "chatGPTBridge" {
+                if let body = message.body as? [String: Any],
+                   let type = body["type"] as? String {
+                    
+                    switch type {
+                    case "ready":
+                        let inputFound = body["inputFound"] as? Bool ?? false
+                        let sendButtonFound = body["sendButtonFound"] as? Bool ?? false
+                        
+                        print("🎉 ChatGPT is ready! Input: \(inputFound), Send Button: \(sendButtonFound)")
+                        
+                        DispatchQueue.main.async {
+                            self.parent.webViewStore?.isChatGPTReady = true
+                            self.parent.onChatGPTReady?()
+                        }
+                    default:
+                        print("📨 Received message from ChatGPT: \(body)")
+                    }
+                }
+            }
+        }
+        
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
             print("🔵 Navigation started")
             DispatchQueue.main.async {
                 self.parent.isLoading = true
+                self.parent.webViewStore?.isChatGPTReady = false
             }
         }
         
@@ -100,6 +729,11 @@ extension WebViewWrapper {
                 self.parent.isLoading = false
                 self.parent.canGoBack = webView.canGoBack
                 self.parent.canGoForward = webView.canGoForward
+            }
+            
+            // Check login status after navigation completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                self.parent.webViewStore?.checkLoginStatus()
             }
         }
         
