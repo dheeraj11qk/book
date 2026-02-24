@@ -77,22 +77,6 @@ struct BrowserView: View {
                 }
                 .buttonStyle(.plain)
                 
-                // Debug button (temporary)
-                Button(action: {
-                    webViewStore.debugCurrentPage()
-                    // Also try sending a test message
-                    webViewStore.sendMessageToChatGPT("Hello, this is a test message")
-                }) {
-                    Text("Debug")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.orange)
-                        .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-                
                 // Clear data button (for login issues)
                 Button(action: {
                     webViewStore.clearAllData()
@@ -111,6 +95,8 @@ struct BrowserView: View {
                 
                 // Close button
                 Button(action: {
+                    // Clear screenshots when closing browser
+                    screenshotService.clearScreenshots()
                     isPresented = false
                 }) {
                     Image(systemName: "xmark")
@@ -154,24 +140,10 @@ struct BrowserView: View {
             // Native ChatGPT Input (only show when ChatGPT is ready)
             if webViewStore.isChatGPTReady {
                 VStack(spacing: 0) {
-                    // Status indicator
-                    HStack {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.green)
-                            .font(.system(size: 12))
-                        Text("Native ChatGPT Control Active")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    
-                    // Subtle divider
+                    // Simple grey separator line
                     Rectangle()
-                        .fill(Color.gray.opacity(0.15))
+                        .fill(Color.gray.opacity(0.3))
                         .frame(height: 1)
-                        .padding(.top, 8)
                     
                     // Native input area matching ChatGPT's design
                     HStack(spacing: 12) {
@@ -214,33 +186,7 @@ struct BrowserView: View {
                         .buttonStyle(.plain)
                         .help(speechRecognizer.isRecording ? "Stop and send" : "Start voice input")
                         
-                        // Screenshot button (instead of stop/cancel button)
-                        if speechRecognizer.isRecording || speechRecognizer.isProcessing {
-                            Button(action: {
-                                Task {
-                                    await screenshotService.takeScreenshot()
-                                    // Send the latest screenshot to ChatGPT
-                                    if let latestScreenshot = screenshotService.screenshots.last {
-                                        webViewStore.sendImageToChatGPT(latestScreenshot)
-                                    }
-                                }
-                            }) {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.gray.opacity(0.2))
-                                        .frame(width: 36, height: 36)
-                                    
-                                    Image(systemName: "camera.viewfinder")
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundColor(.primary)
-                                }
-                            }
-                            .buttonStyle(.plain)
-                            .help("Take screenshot and send to ChatGPT")
-                            .transition(.scale.combined(with: .opacity))
-                        }
-                        
-                        // Standalone screenshot button (always visible)
+                        // Single screenshot button (always visible)
                         Button(action: {
                             Task {
                                 await screenshotService.takeScreenshot()

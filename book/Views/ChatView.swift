@@ -79,53 +79,55 @@ struct ChatView: View {
             } else {
                 // Normal chat interface - user always sees this
                 VStack(spacing: 0) {
-                    // Top bar with settings, auto-type overlay, and reset button
-                    HStack {
-                        // Settings button
-                        Button(action: {
-                            showingSettings = true
-                        }) {
-                            Image(systemName: "gearshape.fill")
-                                .font(.system(size: 18))
-                                .foregroundColor(.white)
-                                .padding(8)
+                    // Top bar with settings, auto-type overlay, and reset button (only show when browser is closed)
+                    if !showingBrowser {
+                        HStack {
+                            // Settings button
+                            Button(action: {
+                                showingSettings = true
+                            }) {
+                                Image(systemName: "gearshape.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.white)
+                                    .padding(8)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            // Browser button
+                            Button(action: {
+                                showingBrowser.toggle()
+                            }) {
+                                Image(systemName: "safari")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.white)
+                                    .padding(8)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Spacer()
+                            
+                            // Auto Type Overlay - centered between settings and reset
+                            if let clipboardText = autoTyperViewModel.clipboardText, !clipboardText.isEmpty {
+                                AutoTypeOverlay(viewModel: autoTyperViewModel)
+                                    .transition(.scale.combined(with: .opacity))
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                viewModel.clearChat()
+                                screenshotService.clearScreenshots()
+                            }) {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.white)
+                                    .padding(8)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
-                        
-                        // Browser button
-                        Button(action: {
-                            showingBrowser.toggle()
-                        }) {
-                            Image(systemName: "safari")
-                                .font(.system(size: 18))
-                                .foregroundColor(.white)
-                                .padding(8)
-                        }
-                        .buttonStyle(.plain)
-                        
-                        Spacer()
-                        
-                        // Auto Type Overlay - centered between settings and reset
-                        if let clipboardText = autoTyperViewModel.clipboardText, !clipboardText.isEmpty {
-                            AutoTypeOverlay(viewModel: autoTyperViewModel)
-                                .transition(.scale.combined(with: .opacity))
-                        }
-                        
-                        Spacer()
-                        
-                        Button(action: {
-                            viewModel.clearChat()
-                            screenshotService.clearScreenshots()
-                        }) {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 18))
-                                .foregroundColor(.white)
-                                .padding(8)
-                        }
-                        .buttonStyle(.plain)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
                     
                     // Conditional content area
                     if showingBrowser {
