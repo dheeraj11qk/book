@@ -134,7 +134,8 @@ struct ChatView: View {
                             isPresented: $showingBrowser,
                             viewModel: browserViewModel,
                             webViewStore: webViewStore,
-                            speechRecognizer: speechRecognizer
+                            speechRecognizer: speechRecognizer,
+                            screenshotService: screenshotService
                         )
                     } else {
                         // Chat messages area

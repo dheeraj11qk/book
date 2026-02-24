@@ -229,106 +229,149 @@ struct WebViewWrapper: NSViewRepresentable {
             return report;
         }
         
-        // Function to send message to ChatGPT - KEYBOARD SIMULATION APPROACH
+        // Function to send message to ChatGPT - ENHANCED KEYBOARD SIMULATION
         function sendToChatGPT(message) {
             console.log('📤 Attempting to send message:', message);
             
-            // Find the ProseMirror editor
+            // Strategy 1: Try ProseMirror editor (most reliable)
             const proseMirrorEditor = document.getElementById('prompt-textarea');
             
             if (proseMirrorEditor) {
                 console.log('✅ Found ProseMirror editor');
                 
                 try {
-                    // Clear any existing content first
-                    proseMirrorEditor.innerHTML = '<p><br></p>';
-                    
-                    // Focus the editor
+                    // Focus the editor first
                     proseMirrorEditor.focus();
                     
-                    // Simulate typing each character
-                    let currentText = '';
-                    for (let i = 0; i < message.length; i++) {
-                        currentText += message[i];
-                        
-                        // Set the content
-                        proseMirrorEditor.innerHTML = '<p>' + currentText + '</p>';
-                        
-                        // Trigger input event for each character
-                        proseMirrorEditor.dispatchEvent(new Event('input', { bubbles: true }));
-                    }
+                    // Clear any existing content
+                    proseMirrorEditor.innerHTML = '<p><br></p>';
                     
-                    console.log('✅ Text typed into ProseMirror editor');
-                    
-                    // Wait a moment, then simulate Enter key press
+                    // Wait a moment for focus to take effect
                     setTimeout(() => {
-                        const enterEvent = new KeyboardEvent('keydown', {
-                            key: 'Enter',
-                            code: 'Enter',
-                            keyCode: 13,
-                            which: 13,
-                            bubbles: true,
-                            cancelable: true
-                        });
+                        // Set the content directly
+                        proseMirrorEditor.innerHTML = '<p>' + message + '</p>';
                         
-                        proseMirrorEditor.dispatchEvent(enterEvent);
-                        console.log('✅ Enter key pressed');
+                        // Trigger input events
+                        proseMirrorEditor.dispatchEvent(new Event('input', { bubbles: true }));
+                        proseMirrorEditor.dispatchEvent(new Event('change', { bubbles: true }));
                         
-                        // Also try keyup event
-                        const enterUpEvent = new KeyboardEvent('keyup', {
-                            key: 'Enter',
-                            code: 'Enter',
-                            keyCode: 13,
-                            which: 13,
-                            bubbles: true
-                        });
-                        
-                        proseMirrorEditor.dispatchEvent(enterUpEvent);
-                        
-                        // Clear after sending
+                        // Wait a moment, then simulate Enter key
                         setTimeout(() => {
-                            proseMirrorEditor.innerHTML = '<p><br></p>';
-                        }, 500);
+                            // Create and dispatch Enter key events
+                            const enterKeyDown = new KeyboardEvent('keydown', {
+                                key: 'Enter',
+                                code: 'Enter',
+                                keyCode: 13,
+                                which: 13,
+                                bubbles: true,
+                                cancelable: true
+                            });
+                            
+                            const enterKeyUp = new KeyboardEvent('keyup', {
+                                key: 'Enter',
+                                code: 'Enter',
+                                keyCode: 13,
+                                which: 13,
+                                bubbles: true
+                            });
+                            
+                            proseMirrorEditor.dispatchEvent(enterKeyDown);
+                            proseMirrorEditor.dispatchEvent(enterKeyUp);
+                            
+                            console.log('✅ Enter key events dispatched');
+                            
+                            // Clear the editor after a delay
+                            setTimeout(() => {
+                                proseMirrorEditor.innerHTML = '<p><br></p>';
+                            }, 1000);
+                            
+                        }, 300);
                         
-                    }, 200);
+                    }, 100);
                     
                     return true;
                     
                 } catch (error) {
-                    console.error('❌ Error with keyboard simulation:', error);
-                    return false;
+                    console.error('❌ Error with ProseMirror approach:', error);
                 }
             }
             
-            // Fallback: Try to find and click any submit-like button
-            const submitButtons = [
-                document.querySelector('button[type="submit"]'),
-                document.querySelector('[data-testid*="submit"]'),
-                document.querySelector('[aria-label*="Send"]'),
-                document.querySelector('button[aria-label*="submit"]'),
-                ...Array.from(document.querySelectorAll('button')).filter(btn => 
-                    btn.textContent.toLowerCase().includes('send') || 
-                    btn.textContent.toLowerCase().includes('submit')
-                )
-            ].filter(btn => btn && btn.offsetParent !== null);
-            
-            if (submitButtons.length > 0) {
-                console.log('🎯 Trying direct button click approach');
-                
-                // Try the hidden textarea first
-                const hiddenTextarea = document.querySelector('textarea[name="prompt-textarea"]');
-                if (hiddenTextarea) {
-                    hiddenTextarea.value = message;
-                    hiddenTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+            // Strategy 2: Try to find and use regular textarea
+            const textareas = document.querySelectorAll('textarea');
+            for (const textarea of textareas) {
+                if (textarea.offsetParent !== null && !textarea.disabled) {
+                    console.log('✅ Found visible textarea, trying direct approach');
+                    
+                    try {
+                        textarea.focus();
+                        textarea.value = message;
+                        
+                        // Trigger events
+                        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+                        
+                        // Try to find and click send button
+                        const sendButton = document.querySelector('button[data-testid*="send"], button[aria-label*="Send"], button[type="submit"]');
+                        if (sendButton && sendButton.offsetParent !== null) {
+                            setTimeout(() => {
+                                sendButton.click();
+                                console.log('✅ Send button clicked');
+                            }, 200);
+                            return true;
+                        }
+                        
+                        // If no send button, try Enter key
+                        setTimeout(() => {
+                            const enterEvent = new KeyboardEvent('keydown', {
+                                key: 'Enter',
+                                code: 'Enter',
+                                keyCode: 13,
+                                bubbles: true
+                            });
+                            textarea.dispatchEvent(enterEvent);
+                        }, 200);
+                        
+                        return true;
+                        
+                    } catch (error) {
+                        console.error('❌ Error with textarea approach:', error);
+                    }
                 }
-                
-                // Click the submit button
-                submitButtons[0].click();
-                console.log('✅ Submit button clicked');
-                return true;
             }
             
-            console.error('❌ Could not find suitable method for sending');
+            // Strategy 3: Try contenteditable elements
+            const editableElements = document.querySelectorAll('[contenteditable="true"]');
+            for (const element of editableElements) {
+                if (element.offsetParent !== null) {
+                    console.log('✅ Found contenteditable element');
+                    
+                    try {
+                        element.focus();
+                        element.textContent = message;
+                        
+                        // Trigger events
+                        element.dispatchEvent(new Event('input', { bubbles: true }));
+                        
+                        // Try Enter key
+                        setTimeout(() => {
+                            const enterEvent = new KeyboardEvent('keydown', {
+                                key: 'Enter',
+                                code: 'Enter',
+                                keyCode: 13,
+                                bubbles: true
+                            });
+                            element.dispatchEvent(enterEvent);
+                        }, 200);
+                        
+                        return true;
+                        
+                    } catch (error) {
+                        console.error('❌ Error with contenteditable approach:', error);
+                    }
+                }
+            }
+            
+            console.error('❌ Could not find suitable input method');
             return false;
         }
         
@@ -387,6 +430,63 @@ struct WebViewWrapper: NSViewRepresentable {
         window.getChatGPTResponse = getChatGPTResponse;
         window.findChatGPTElements = findChatGPTElements;
         window.inspectChatGPTDOM = inspectChatGPTDOM;
+        
+        // Add drag and drop functionality for images
+        window.setupImageDragDrop = function() {
+            const dropZone = document.body;
+            
+            dropZone.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🖱️ Drag over detected');
+            });
+            
+            dropZone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('📎 Drop detected');
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    console.log('📁 Files dropped:', files.length);
+                    
+                    // Handle image files
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        if (file.type.startsWith('image/')) {
+                            console.log('🖼️ Image file detected:', file.name);
+                            
+                            // Try to find ChatGPT's file input or attachment button
+                            const fileInputs = document.querySelectorAll('input[type="file"]');
+                            const attachButtons = document.querySelectorAll('button[aria-label*="Attach"], button[data-testid*="attach"]');
+                            
+                            if (fileInputs.length > 0) {
+                                // Use the file input directly
+                                const fileInput = fileInputs[0];
+                                const dataTransfer = new DataTransfer();
+                                dataTransfer.items.add(file);
+                                fileInput.files = dataTransfer.files;
+                                
+                                // Trigger change event
+                                fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+                                console.log('✅ File added to input');
+                            } else if (attachButtons.length > 0) {
+                                // Click the attach button first
+                                attachButtons[0].click();
+                                console.log('📎 Attach button clicked');
+                            }
+                        }
+                    }
+                }
+            });
+            
+            console.log('🎯 Image drag-drop setup complete');
+        };
+        
+        // Setup drag-drop when page loads
+        setTimeout(() => {
+            window.setupImageDragDrop();
+        }, 2000);
         
         // Audio ducking functions for YouTube
         window.duckAudio = function(volume = 0.1) {
@@ -599,6 +699,65 @@ class WebViewStore: ObservableObject {
         }
     }
     
+    func debugCurrentPage() {
+        // Debug function to inspect current page elements
+        let debugScript = """
+        console.log('🔍 === DEBUGGING CURRENT PAGE ===');
+        console.log('URL:', window.location.href);
+        console.log('Title:', document.title);
+        
+        // Check for ChatGPT specific elements
+        const promptTextarea = document.getElementById('prompt-textarea');
+        console.log('prompt-textarea found:', !!promptTextarea);
+        if (promptTextarea) {
+            console.log('prompt-textarea visible:', promptTextarea.offsetParent !== null);
+            console.log('prompt-textarea innerHTML:', promptTextarea.innerHTML.substring(0, 100));
+        }
+        
+        // Check all textareas
+        const allTextareas = document.querySelectorAll('textarea');
+        console.log('Total textareas found:', allTextareas.length);
+        allTextareas.forEach((ta, i) => {
+            console.log(`Textarea ${i}:`, {
+                id: ta.id,
+                name: ta.name,
+                placeholder: ta.placeholder,
+                visible: ta.offsetParent !== null,
+                value: ta.value.substring(0, 50)
+            });
+        });
+        
+        // Check for send buttons
+        const sendButtons = document.querySelectorAll('button[data-testid*="send"], button[aria-label*="Send"], button[type="submit"]');
+        console.log('Send buttons found:', sendButtons.length);
+        sendButtons.forEach((btn, i) => {
+            console.log(`Send button ${i}:`, {
+                testId: btn.getAttribute('data-testid'),
+                ariaLabel: btn.getAttribute('aria-label'),
+                type: btn.type,
+                visible: btn.offsetParent !== null,
+                text: btn.textContent?.substring(0, 30)
+            });
+        });
+        
+        return {
+            url: window.location.href,
+            title: document.title,
+            promptTextareaFound: !!promptTextarea,
+            textareasCount: allTextareas.length,
+            sendButtonsCount: sendButtons.length
+        };
+        """
+        
+        webView?.evaluateJavaScript(debugScript) { result, error in
+            if let error = error {
+                print("❌ Debug script error: \(error)")
+            } else if let debugInfo = result as? [String: Any] {
+                print("🔍 Debug Info: \(debugInfo)")
+            }
+        }
+    }
+    
     func duckAudio() {
         let script = "if (typeof duckAudio === 'function') { duckAudio(0.1); }"
         webView?.evaluateJavaScript(script) { result, error in
@@ -606,6 +765,86 @@ class WebViewStore: ObservableObject {
                 print("❌ Error ducking audio: \(error)")
             } else {
                 print("🔇 Audio ducked successfully")
+            }
+        }
+    }
+    
+    func sendImageToChatGPT(_ image: NSImage) {
+        // Convert NSImage to base64
+        guard let tiffData = image.tiffRepresentation,
+              let bitmapImage = NSBitmapImageRep(data: tiffData),
+              let pngData = bitmapImage.representation(using: .png, properties: [:]) else {
+            print("❌ Failed to convert image to PNG data")
+            return
+        }
+        
+        let base64String = pngData.base64EncodedString()
+        
+        // JavaScript to handle image upload to ChatGPT
+        let script = """
+        (function() {
+            const base64Data = '\(base64String)';
+            
+            // Convert base64 to blob
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], {type: 'image/png'});
+            
+            // Create a file from the blob
+            const file = new File([blob], 'screenshot.png', {type: 'image/png'});
+            
+            // Try to find file input
+            const fileInputs = document.querySelectorAll('input[type="file"]');
+            if (fileInputs.length > 0) {
+                const fileInput = fileInputs[0];
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                fileInput.files = dataTransfer.files;
+                
+                // Trigger change event
+                fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+                console.log('✅ Screenshot uploaded to ChatGPT');
+                return true;
+            }
+            
+            // Try to find attach button and click it
+            const attachButtons = document.querySelectorAll('button[aria-label*="Attach"], button[data-testid*="attach"], button[title*="Attach"]');
+            if (attachButtons.length > 0) {
+                attachButtons[0].click();
+                console.log('📎 Attach button clicked, waiting for file input...');
+                
+                // Wait for file input to appear
+                setTimeout(() => {
+                    const newFileInputs = document.querySelectorAll('input[type="file"]');
+                    if (newFileInputs.length > 0) {
+                        const fileInput = newFileInputs[newFileInputs.length - 1]; // Use the newest one
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        fileInput.files = dataTransfer.files;
+                        
+                        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+                        console.log('✅ Screenshot uploaded after clicking attach');
+                        return true;
+                    }
+                }, 500);
+            }
+            
+            console.log('❌ Could not find way to upload image');
+            return false;
+        })();
+        """
+        
+        webView?.evaluateJavaScript(script) { result, error in
+            if let error = error {
+                print("❌ Error uploading image: \(error)")
+            } else if let success = result as? Bool, success {
+                print("✅ Image uploaded successfully")
+            } else {
+                print("⚠️ Image upload result unclear")
             }
         }
     }
