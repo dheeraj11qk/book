@@ -13,8 +13,11 @@ struct ChatView: View {
     @StateObject private var screenshotService = ScreenshotService()
     @StateObject private var captureObserver = ScreenCaptureObserver()
     @StateObject private var autoTyperViewModel = AutoTyperViewModel()
+    @StateObject private var browserViewModel = BrowserViewModel()
+    @StateObject private var webViewStore = WebViewStore()
     @State private var inputText: String = ""
     @State private var showingSettings = false
+    @State private var showingBrowser = false
     @State private var randomGreeting: String = ""
     @State private var hasScrolledToStreamStart = false
     
@@ -89,6 +92,17 @@ struct ChatView: View {
                         }
                         .buttonStyle(.plain)
                         
+                        // Browser button
+                        Button(action: {
+                            showingBrowser.toggle()
+                        }) {
+                            Image(systemName: "safari")
+                                .font(.system(size: 18))
+                                .foregroundColor(.white)
+                                .padding(8)
+                        }
+                        .buttonStyle(.plain)
+                        
                         Spacer()
                         
                         // Auto Type Overlay - centered between settings and reset
@@ -113,8 +127,17 @@ struct ChatView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     
-                    // Messages area
-                    ScrollViewReader { proxy in
+                    // Conditional content area
+                    if showingBrowser {
+                        // Browser view
+                        BrowserView(
+                            isPresented: $showingBrowser,
+                            viewModel: browserViewModel,
+                            webViewStore: webViewStore
+                        )
+                    } else {
+                        // Chat messages area
+                        ScrollViewReader { proxy in
                         ScrollView {
                             if viewModel.messages.isEmpty && viewModel.currentStreamingMessage.isEmpty {
                                 // Empty state
@@ -177,13 +200,16 @@ struct ChatView: View {
                                 hasScrolledToStreamStart = true
                             }
                         }
-                    }
+                    } // closes ScrollViewReader
+                    } // closes else
                     
-                    Divider()
-                        .background(Color.gray.opacity(0.3))
-                    
-                    // Input area
-                    InputBarView(
+                    // Divider and Input area (only show when not in browser mode)
+                    if !showingBrowser {
+                        Divider()
+                            .background(Color.gray.opacity(0.3))
+                        
+                        // Input area
+                        InputBarView(
                         inputText: $inputText,
                         isRecording: speechRecognizer.isRecording,
                         isProcessing: speechRecognizer.isProcessing,
@@ -213,12 +239,12 @@ struct ChatView: View {
                         }
                     )
                     .privacySensitive(shouldHideFromCapture)
+                    }
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .privacySensitive()
-        .animation(.default, value: isHiding)
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
